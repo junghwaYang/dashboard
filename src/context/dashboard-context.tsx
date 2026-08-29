@@ -6,6 +6,9 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 
+// 👑 최고관리자 권한을 가진 화이트리스트 이메일 목록
+export const SUPER_ADMIN_EMAILS = ['siltarre@gmail.com'];
+
 interface DashboardContextType {
   teams: Team[];
   profiles: Profile[];
@@ -14,6 +17,7 @@ interface DashboardContextType {
   currentProfile: Profile | null;
   isLoading: boolean;
   isSupabaseConnected: boolean;
+  isSuperAdmin: boolean;
   setUserTeam: (teamId: TeamId) => Promise<void>;
   setUserRole: (role: UserRole) => Promise<void>;
   createTask: (taskData: {
@@ -48,6 +52,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
+  const isSuperAdmin = useMemo(() => {
+    return !!authUser?.email && SUPER_ADMIN_EMAILS.includes(authUser.email);
+  }, [authUser]);
+
   // Fetch all live data from Supabase
   const fetchData = useCallback(async (user: User | null) => {
     const supabase = createClient();
@@ -79,6 +87,9 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
       // 3. Set Current Profile from logged in User
       if (user) {
+        const isUserAdmin = !!user.email && SUPER_ADMIN_EMAILS.includes(user.email);
+        const expectedRole: UserRole = isUserAdmin ? 'admin' : 'member';
+
         let profile = profilesData?.find((p) => p.id === user.id);
 
         if (!profile) {
@@ -94,7 +105,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
                 user.email?.split('@')[0] ||
                 '사용자',
               avatar_url: user.user_metadata?.avatar_url || null,
-              role: 'member',
+              role: expectedRole,
             })
             .select()
             .single();
@@ -103,6 +114,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
             profile = newProfile as Profile;
             setProfiles((prev) => [...prev.filter((p) => p.id !== profile!.id), profile!]);
           }
+        } else if (isUserAdmin && profile.role !== 'admin') {
+          // If super admin email but role is not admin, upgrade role
+          const { data: updatedProfile } = await supabase
+            .from('profiles')
+            .update({ role: 'admin', updated_at: new Date().toISOString() })
+            .eq('id', user.id)
+            .select()
+            .single();
+          if (updatedProfile) profile = updatedProfile as Profile;
+        } else if (!isUserAdmin && profile.role === 'admin') {
+          // If not super admin email but has admin role, downgrade to member
+          const { data: updatedProfile } = await supabase
+            .from('profiles')
+            .update({ role: 'member', updated_at: new Date().toISOString() })
+            .eq('id', user.id)
+            .select()
+            .single();
+          if (updatedProfile) profile = updatedProfile as Profile;
         }
 
         if (profile) {
@@ -201,11 +230,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [authUser]
   );
 
-  // Set / Toggle User's Role (admin / member) for testing
+  // Set / Toggle User's Role (오직 siltarre@gmail.com 만 가능)
   const setUserRole = useCallback(
     async (role: UserRole) => {
       const supabase = createClient();
       if (!supabase || !authUser) return;
+
+      // 보안 검증: siltarre@gmail.com 계정이 아닌 경우 admin 승격 불가
+      if (role === 'admin' && !SUPER_ADMIN_EMAILS.includes(authUser.email || '')) {
+        console.warn('관리자 권한은 siltarre@gmail.com 계정만 부여받을 수 있습니다.');
+        return;
+      }
 
       const { data, error } = await supabase
         .from('profiles')
@@ -391,6 +426,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         currentProfile,
         isLoading,
         isSupabaseConnected,
+        isSuperAdmin,
         setUserTeam,
         setUserRole,
         createTask,

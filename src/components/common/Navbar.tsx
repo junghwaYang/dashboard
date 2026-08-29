@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export function Navbar() {
-  const { currentProfile, authUser, isSupabaseConnected, signOut, setUserRole } = useDashboard();
+  const { currentProfile, authUser, isSupabaseConnected, signOut, setUserRole, isSuperAdmin } = useDashboard();
 
   const getTeamBadgeColor = (teamId: TeamId | null | undefined, role?: string) => {
     if (role === 'admin') return 'bg-amber-100 text-amber-800 border-amber-300';
@@ -135,26 +135,28 @@ export function Navbar() {
                   </Link>
                 </DropdownMenuItem>
 
-                {/* Role Switcher for easy testing */}
-                <DropdownMenuItem
-                  onClick={() => {
-                    const newRole = currentProfile?.role === 'admin' ? 'member' : 'admin';
-                    setUserRole(newRole);
-                  }}
-                  className="flex items-center justify-between cursor-pointer text-xs"
-                >
-                  <div className="flex items-center gap-2">
-                    <UserCheck className="h-3.5 w-3.5 text-primary" />
-                    <span>
-                      {currentProfile?.role === 'admin'
-                        ? '일반 팀원으로 전환'
-                        : '총괄 관리자(Admin)로 전환'}
+                {/* Role Switcher (오직 최고관리자 siltarre@gmail.com 계정 전용) */}
+                {isSuperAdmin && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const newRole = currentProfile?.role === 'admin' ? 'member' : 'admin';
+                      setUserRole(newRole);
+                    }}
+                    className="flex items-center justify-between cursor-pointer text-xs"
+                  >
+                    <div className="flex items-center gap-2">
+                      <UserCheck className="h-3.5 w-3.5 text-primary" />
+                      <span>
+                        {currentProfile?.role === 'admin'
+                          ? '일반 팀원 뷰 시뮬레이션'
+                          : '총괄 관리자(Admin) 뷰 전환'}
+                      </span>
+                    </div>
+                    <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded font-bold">
+                      {currentProfile?.role === 'admin' ? 'Admin' : 'Member'}
                     </span>
-                  </div>
-                  <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded font-bold">
-                    {currentProfile?.role === 'admin' ? 'Admin' : 'Member'}
-                  </span>
-                </DropdownMenuItem>
+                  </DropdownMenuItem>
+                )}
 
                 <DropdownMenuSeparator />
 
