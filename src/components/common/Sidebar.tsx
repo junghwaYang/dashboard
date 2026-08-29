@@ -10,9 +10,7 @@ import {
   Palette, 
   Code2, 
   Lock, 
-  ShieldCheck, 
-  CheckCircle2,
-  FolderKanban
+  ShieldCheck
 } from 'lucide-react';
 import { TeamId } from '@/types/dashboard';
 
@@ -21,13 +19,12 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
-  badge?: string;
   color?: string;
 }
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentProfile, canAccessTeam, summaryStats } = useDashboard();
+  const { currentProfile, authUser, canAccessTeam, summaryStats } = useDashboard();
 
   const mainNavItems: NavItem[] = [
     {
@@ -116,7 +113,7 @@ export function Sidebar() {
               const isActive = pathname === item.href;
               const Icon = item.icon;
               const count = getTeamTaskCount(item.id);
-              const isMyTeam = currentProfile.team_id === item.id;
+              const isMyTeam = currentProfile?.team_id === item.id;
 
               return (
                 <Link
@@ -170,15 +167,17 @@ export function Sidebar() {
           <span>팀 보안 격리(RLS) 적용</span>
         </div>
         <p className="text-muted-foreground text-[11px] leading-relaxed">
-          {currentProfile.role === 'admin' ? (
+          {!authUser ? (
+            '로그인 시 소속 팀의 워크스페이스가 활성화됩니다.'
+          ) : currentProfile?.role === 'admin' ? (
             '관리자 계정으로 모든 팀의 업무를 열람 및 관리하고 있습니다.'
           ) : (
             `현재 [${
-              currentProfile.team_id === 'planning'
+              currentProfile?.team_id === 'planning'
                 ? '기획팀'
-                : currentProfile.team_id === 'design'
+                : currentProfile?.team_id === 'design'
                 ? '디자인팀'
-                : currentProfile.team_id === 'development'
+                : currentProfile?.team_id === 'development'
                 ? '개발팀'
                 : '팀 미지정'
             }] 소속으로 타 팀의 상세 태스크는 보호됩니다.`

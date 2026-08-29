@@ -2,18 +2,19 @@
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { Team, Profile, Task, TeamId, TaskStatus, TeamSummaryStat, OverviewMetrics } from '@/types/dashboard';
-import { MOCK_TEAMS, MOCK_PROFILES, INITIAL_TASKS } from '@/lib/mock-data';
 import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
+import type { User } from '@supabase/supabase-js';
 
 interface DashboardContextType {
   teams: Team[];
   profiles: Profile[];
   tasks: Task[];
-  currentProfile: Profile;
+  authUser: User | null;
+  currentProfile: Profile | null;
   isLoading: boolean;
   isSupabaseConnected: boolean;
-  setCurrentProfile: (profile: Profile) => void;
-  setUserTeam: (teamId: TeamId) => void;
+  setUserTeam: (teamId: TeamId) => Promise<void>;
   createTask: (taskData: {
     title: string;
     description: string | null;
@@ -30,118 +31,177 @@ interface DashboardContextType {
   overviewMetrics: OverviewMetrics;
   getTasksByTeam: (teamId: TeamId) => Task[];
   canAccessTeam: (teamId: TeamId) => boolean;
+  signOut: () => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY_TASKS = 'fastcampus_dashboard_tasks_v1';
-const LOCAL_STORAGE_KEY_PROFILE = 'fastcampus_dashboard_profile_v1';
-
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
-  const [teams] = useState<Team[]>(MOCK_TEAMS);
-  const [profiles, setProfiles] = useState<Profile[]>(MOCK_PROFILES);
+  const router = useRouter();
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [currentProfile, setCurrentProfileState] = useState<Profile>(MOCK_PROFILES[0]);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
-  // Initialize data from LocalStorage or Supabase
-  useEffect(() => {
-    async function initializeData() {
-      setIsLoading(true);
-      const supabase = createClient();
+  // Fetch all live data from Supabase
+  const fetchData = useCallback(async (user: User | null) => {
+    const supabase = createClient();
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
 
-      if (supabase) {
-        try {
-          // Check supabase connection
-          const { data: teamsData, error: teamsError } = await supabase.from('teams').select('*');
-          if (!teamsError && teamsData && teamsData.length > 0) {
-            setIsSupabaseConnected(true);
-            const { data: tasksData } = await supabase
-              .from('tasks')
-              .select('*, assignee:profiles(*)');
-            if (tasksData) {
-              setTasks(tasksData as Task[]);
-            }
+    try {
+      // 1. Fetch Teams
+      const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select('*')
+        .order('id');
 
-            const { data: profilesData } = await supabase.from('profiles').select('*');
-            if (profilesData && profilesData.length > 0) {
-              setProfiles(profilesData as Profile[]);
-            }
+      if (!teamsError && teamsData) {
+        setTeams(teamsData as Team[]);
+        setIsSupabaseConnected(true);
+      }
 
-            const { data: userData } = await supabase.auth.getUser();
-            if (userData?.user) {
-              const current = profilesData?.find((p) => p.id === userData.user.id);
-              if (current) setCurrentProfileState(current as Profile);
-            }
-            setIsLoading(false);
-            return;
+      // 2. Fetch Profiles
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*');
+
+      if (profilesData) {
+        setProfiles(profilesData as Profile[]);
+      }
+
+      // 3. Set Current Profile from logged in User
+      if (user) {
+        let profile = profilesData?.find((p) => p.id === user.id);
+
+        if (!profile) {
+          // If profile doesn't exist yet, create or upsert profile
+          const { data: newProfile, error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: user.id,
+              email: user.email || '',
+              full_name:
+                user.user_metadata?.full_name ||
+                user.user_metadata?.name ||
+                user.email?.split('@')[0] ||
+                '사용자',
+              avatar_url: user.user_metadata?.avatar_url || null,
+              role: 'member',
+            })
+            .select()
+            .single();
+
+          if (!profileError && newProfile) {
+            profile = newProfile as Profile;
+            setProfiles((prev) => [...prev.filter((p) => p.id !== profile!.id), profile!]);
           }
-        } catch {
-          // Fallback to local storage
         }
+
+        if (profile) {
+          setCurrentProfile(profile as Profile);
+        }
+      } else {
+        setCurrentProfile(null);
       }
 
-      // Local storage fallback for seamless offline / demo mode
-      try {
-        const savedTasks = localStorage.getItem(LOCAL_STORAGE_KEY_TASKS);
-        if (savedTasks) {
-          setTasks(JSON.parse(savedTasks));
-        } else {
-          setTasks(INITIAL_TASKS);
-          localStorage.setItem(LOCAL_STORAGE_KEY_TASKS, JSON.stringify(INITIAL_TASKS));
-        }
+      // 4. Fetch Tasks with Assignee profiles
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select('*, assignee:profiles(*)')
+        .order('created_at', { ascending: false });
 
-        const savedProfile = localStorage.getItem(LOCAL_STORAGE_KEY_PROFILE);
-        if (savedProfile) {
-          const parsed = JSON.parse(savedProfile);
-          const found = MOCK_PROFILES.find((p) => p.id === parsed.id) || parsed;
-          setCurrentProfileState(found);
-        } else {
-          setCurrentProfileState(MOCK_PROFILES[0]); // default to 김기획 (기획팀)
-        }
-      } catch {
-        setTasks(INITIAL_TASKS);
-      } finally {
-        setIsLoading(false);
+      if (!tasksError && tasksData) {
+        setTasks(tasksData as Task[]);
       }
-    }
-
-    initializeData();
-  }, []);
-
-  // Save tasks to local storage when changed in demo mode
-  const persistTasks = useCallback((newTasks: Task[]) => {
-    setTasks(newTasks);
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY_TASKS, JSON.stringify(newTasks));
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to fetch data from Supabase:', err);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const setCurrentProfile = useCallback((profile: Profile) => {
-    setCurrentProfileState(profile);
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY_PROFILE, JSON.stringify(profile));
-    } catch {
-      // ignore
+  // Initialize Supabase Auth and Realtime Subscription
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) {
+      setIsLoading(false);
+      return;
     }
-  }, []);
 
+    // Get current active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user ?? null;
+      setAuthUser(user);
+      fetchData(user);
+    });
+
+    // Listen to Auth State changes (Login, Logout, Token Refresh)
+    const {
+      data: { subscription: authSubscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null;
+      setAuthUser(user);
+      fetchData(user);
+    });
+
+    // Listen to Realtime Tasks table changes
+    const tasksChannel = supabase
+      .channel('public:tasks')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        async () => {
+          // Re-fetch tasks on any insert/update/delete
+          const { data } = await supabase
+            .from('tasks')
+            .select('*, assignee:profiles(*)')
+            .order('created_at', { ascending: false });
+          if (data) {
+            setTasks(data as Task[]);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      authSubscription.unsubscribe();
+      supabase.removeChannel(tasksChannel);
+    };
+  }, [fetchData]);
+
+  // Set / Update User's Team in Supabase
   const setUserTeam = useCallback(
-    (teamId: TeamId) => {
-      const updated: Profile = {
-        ...currentProfile,
-        team_id: teamId,
-        updated_at: new Date().toISOString(),
-      };
-      setCurrentProfile(updated);
-      setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    async (teamId: TeamId) => {
+      const supabase = createClient();
+      if (!supabase || !authUser) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          team_id: teamId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authUser.id)
+        .select()
+        .single();
+
+      if (!error && data) {
+        const updated = data as Profile;
+        setCurrentProfile(updated);
+        setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      }
     },
-    [currentProfile, setCurrentProfile]
+    [authUser]
   );
 
+  // Create Task in Supabase
   const createTask = useCallback(
     async (taskData: {
       title: string;
@@ -153,110 +213,73 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       due_date: string | null;
     }): Promise<Task> => {
       const supabase = createClient();
-      const assignee = profiles.find((p) => p.id === taskData.assignee_id) || null;
+      if (!supabase) throw new Error('Supabase client is not available');
 
-      if (isSupabaseConnected && supabase) {
-        const { data, error } = await supabase
-          .from('tasks')
-          .insert({
-            ...taskData,
-            created_by: currentProfile.id,
-          })
-          .select('*, assignee:profiles(*)')
-          .single();
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+          ...taskData,
+          created_by: authUser?.id || null,
+        })
+        .select('*, assignee:profiles(*)')
+        .single();
 
-        if (error) {
-          throw new Error(error.message);
-        }
-        const newTask = data as Task;
-        setTasks((prev) => [newTask, ...prev]);
-        return newTask;
+      if (error) {
+        throw new Error(error.message);
       }
 
-      const newTask: Task = {
-        id: `task-${Date.now()}`,
-        team_id: taskData.team_id,
-        title: taskData.title,
-        description: taskData.description,
-        status: taskData.status,
-        priority: taskData.priority,
-        assignee_id: taskData.assignee_id,
-        due_date: taskData.due_date,
-        created_by: currentProfile.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        assignee: assignee,
-      };
-
-      const updatedList = [newTask, ...tasks];
-      persistTasks(updatedList);
+      const newTask = data as Task;
+      setTasks((prev) => [newTask, ...prev]);
       return newTask;
     },
-    [currentProfile.id, isSupabaseConnected, persistTasks, profiles, tasks]
+    [authUser]
   );
 
+  // Update Task in Supabase
   const updateTask = useCallback(
     async (taskId: string, updates: Partial<Task>): Promise<Task> => {
       const supabase = createClient();
-      const assignee = updates.assignee_id
-        ? profiles.find((p) => p.id === updates.assignee_id) || null
-        : undefined;
+      if (!supabase) throw new Error('Supabase client is not available');
 
-      if (isSupabaseConnected && supabase) {
-        const { data, error } = await supabase
-          .from('tasks')
-          .update({
-            ...updates,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', taskId)
-          .select('*, assignee:profiles(*)')
-          .single();
+      // Sanitize assignee relation object if present in updates
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { assignee, ...cleanUpdates } = updates;
 
-        if (error) {
-          throw new Error(error.message);
-        }
-        const updated = data as Task;
-        setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
-        return updated;
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({
+          ...cleanUpdates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId)
+        .select('*, assignee:profiles(*)')
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
       }
 
-      let updatedTask: Task | null = null;
-      const updatedList = tasks.map((task) => {
-        if (task.id === taskId) {
-          updatedTask = {
-            ...task,
-            ...updates,
-            assignee: assignee !== undefined ? assignee : task.assignee,
-            updated_at: new Date().toISOString(),
-          };
-          return updatedTask;
-        }
-        return task;
-      });
-
-      if (!updatedTask) throw new Error('Task not found');
-      persistTasks(updatedList);
-      return updatedTask;
+      const updated = data as Task;
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
+      return updated;
     },
-    [isSupabaseConnected, persistTasks, profiles, tasks]
+    []
   );
 
-  const deleteTask = useCallback(
-    async (taskId: string): Promise<void> => {
-      const supabase = createClient();
+  // Delete Task in Supabase
+  const deleteTask = useCallback(async (taskId: string): Promise<void> => {
+    const supabase = createClient();
+    if (!supabase) throw new Error('Supabase client is not available');
 
-      if (isSupabaseConnected && supabase) {
-        const { error } = await supabase.from('tasks').delete().eq('id', taskId);
-        if (error) throw new Error(error.message);
-      }
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+    if (error) {
+      throw new Error(error.message);
+    }
 
-      const updatedList = tasks.filter((t) => t.id !== taskId);
-      persistTasks(updatedList);
-    },
-    [isSupabaseConnected, persistTasks, tasks]
-  );
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  }, []);
 
+  // Update Task Status
   const updateTaskStatus = useCallback(
     async (taskId: string, status: TaskStatus): Promise<void> => {
       await updateTask(taskId, { status });
@@ -264,12 +287,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [updateTask]
   );
 
+  // Sign Out from Google / Supabase
+  const signOut = useCallback(async () => {
+    const supabase = createClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+      setAuthUser(null);
+      setCurrentProfile(null);
+      router.push('/login');
+    }
+  }, [router]);
+
+  // Team Access Control Check
   const canAccessTeam = useCallback(
     (teamId: TeamId): boolean => {
+      if (!currentProfile) return false;
       if (currentProfile.role === 'admin') return true;
       return currentProfile.team_id === teamId;
     },
-    [currentProfile.role, currentProfile.team_id]
+    [currentProfile]
   );
 
   const getTasksByTeam = useCallback(
@@ -279,12 +315,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [tasks]
   );
 
-  // Compute summary stats for all teams
+  // Summary stats for all teams
   const summaryStats = useMemo<TeamSummaryStat[]>(() => {
-    return teams.map((team) => {
+    const defaultTeams: { id: TeamId; name: string }[] = [
+      { id: 'planning', name: '기획팀' },
+      { id: 'design', name: '디자인팀' },
+      { id: 'development', name: '개발팀' },
+    ];
+
+    const teamList = teams.length > 0 ? teams : defaultTeams;
+
+    return teamList.map((team) => {
       const teamTasks = tasks.filter((t) => t.team_id === team.id);
       return {
-        team_id: team.id,
+        team_id: team.id as TeamId,
         team_name: team.name,
         total_count: teamTasks.length,
         todo_count: teamTasks.filter((t) => t.status === 'TODO').length,
@@ -296,7 +340,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     });
   }, [teams, tasks]);
 
-  // Compute overall KPI metrics
+  // Overall KPI metrics
   const overviewMetrics = useMemo<OverviewMetrics>(() => {
     const total = tasks.length;
     const completed = tasks.filter((t) => t.status === 'DONE').length;
@@ -319,10 +363,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         teams,
         profiles,
         tasks,
+        authUser,
         currentProfile,
         isLoading,
         isSupabaseConnected,
-        setCurrentProfile,
         setUserTeam,
         createTask,
         updateTask,
@@ -332,6 +376,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         overviewMetrics,
         getTasksByTeam,
         canAccessTeam,
+        signOut,
+        refreshData: () => fetchData(authUser),
       }}
     >
       {children}

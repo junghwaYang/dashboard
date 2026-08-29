@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useDashboard } from '@/context/dashboard-context';
 import { TeamId, Task, TaskStatus } from '@/types/dashboard';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
@@ -16,21 +16,20 @@ import {
   Plus, 
   Kanban, 
   List, 
-  ShieldAlert, 
   ArrowLeft,
-  Users
+  Users,
+  LogIn
 } from 'lucide-react';
 
 export default function TeamWorkspacePage() {
   const params = useParams();
-  const router = useRouter();
   const teamId = params.teamId as TeamId;
 
-  const { teams, getTasksByTeam, canAccessTeam, currentProfile } = useDashboard();
+  const { teams, getTasksByTeam, canAccessTeam, currentProfile, authUser } = useDashboard();
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
-  const [initialStatusForModal, setInitialStatusForModal] = useState<TaskStatus>('TODO');
+  const [, setInitialStatusForModal] = useState<TaskStatus>('TODO');
 
   const validTeams: TeamId[] = ['planning', 'design', 'development'];
   if (!validTeams.includes(teamId)) {
@@ -82,23 +81,27 @@ export default function TeamWorkspacePage() {
           접근 권한이 제한되었습니다
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed">
-          <strong className="text-foreground">[{team?.name}]</strong> 워크스페이스는 해당 팀 소속 멤버 및 관리자만 상세 업무를 열람하고 관리할 수 있습니다.
+          <strong className="text-foreground">[{team?.name || teamId}]</strong> 워크스페이스는 해당 팀 소속 멤버 및 관리자만 상세 업무를 열람하고 관리할 수 있습니다.
         </p>
 
         <div className="mt-6 w-full rounded-xl border border-border bg-card p-4 text-left text-xs space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">내 현재 소속:</span>
+            <span className="text-muted-foreground">내 현재 상태:</span>
             <span className="font-semibold text-foreground">
-              {currentProfile.team_id ? `${currentProfile.team_id.toUpperCase()}팀` : '팀 미지정'}
+              {authUser
+                ? currentProfile?.team_id
+                  ? `${currentProfile.team_id.toUpperCase()}팀`
+                  : '팀 미지정'
+                : '로그인 필요'}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">접근 시도 대상:</span>
-            <span className="font-semibold text-destructive">{team?.name}</span>
+            <span className="font-semibold text-destructive">{team?.name || teamId}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">권한 상태:</span>
-            <span className="font-semibold text-destructive">접근 차단 (RLS)</span>
+            <span className="text-muted-foreground">보안 정책:</span>
+            <span className="font-semibold text-destructive">팀별 격리 (RLS 적용)</span>
           </div>
         </div>
 
@@ -110,19 +113,29 @@ export default function TeamWorkspacePage() {
             <ArrowLeft className="h-4 w-4" />
             <span>메인 대시보드로 돌아가기</span>
           </Link>
-          <Link
-            href="/onboarding"
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-sm"
-          >
-            <Users className="h-4 w-4" />
-            <span>내 소속 팀 변경하기</span>
-          </Link>
+          {authUser ? (
+            <Link
+              href="/onboarding"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-sm"
+            >
+              <Users className="h-4 w-4" />
+              <span>소속 팀 설정하기</span>
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-sm"
+            >
+              <LogIn className="h-4 w-4" />
+              <span>로그인하러 가기</span>
+            </Link>
+          )}
         </div>
       </div>
     );
   }
 
-  const isMyTeam = currentProfile.team_id === teamId;
+  const isMyTeam = currentProfile?.team_id === teamId;
 
   // ✅ AUTHORIZED TEAM WORKSPACE VIEW
   return (
@@ -148,7 +161,7 @@ export default function TeamWorkspacePage() {
             </div>
 
             <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
-              {team?.name} 워크스페이스
+              {team?.name || teamId} 워크스페이스
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">{team?.description}</p>
           </div>

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard } from '@/context/dashboard-context';
 import { TeamId } from '@/types/dashboard';
+import { createClient } from '@/lib/supabase/client';
 import { 
   Lightbulb, 
   Palette, 
@@ -11,18 +12,30 @@ import {
   CheckCircle2, 
   ArrowRight, 
   Users,
-  ShieldCheck
+  AlertCircle
 } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { currentProfile, setCurrentProfile, teams } = useDashboard();
+  const { currentProfile, authUser, setUserTeam, refreshData } = useDashboard();
 
   const [selectedTeam, setSelectedTeam] = useState<TeamId>(
-    currentProfile.team_id || 'planning'
+    currentProfile?.team_id || 'planning'
   );
-  const [fullName, setFullName] = useState(currentProfile.full_name || '');
+  const [fullName, setFullName] = useState(
+    currentProfile?.full_name || authUser?.user_metadata?.full_name || ''
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentProfile?.team_id) {
+      setSelectedTeam(currentProfile.team_id);
+    }
+    if (currentProfile?.full_name) {
+      setFullName(currentProfile.full_name);
+    }
+  }, [currentProfile]);
 
   const teamOptions = [
     {
@@ -51,22 +64,42 @@ export default function OnboardingPage() {
     },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage(null);
 
-    const updatedProfile = {
-      ...currentProfile,
-      full_name: fullName.trim() || currentProfile.full_name,
-      team_id: selectedTeam,
-      updated_at: new Date().toISOString(),
-    };
+    const supabase = createClient();
+    if (!supabase) {
+      setErrorMessage('Supabase 클라이언트가 초기화되지 않았습니다.');
+      setIsSubmitting(false);
+      return;
+    }
 
-    setCurrentProfile(updatedProfile);
+    try {
+      if (authUser) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            full_name: fullName.trim() || '사용자',
+            team_id: selectedTeam,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', authUser.id);
 
-    setTimeout(() => {
+        if (error) throw error;
+        await refreshData();
+      } else {
+        await setUserTeam(selectedTeam);
+      }
+
       router.push(`/teams/${selectedTeam}`);
-    }, 400);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '팀 설정 저장 중 오류가 발생했습니다.';
+      setErrorMessage(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -83,6 +116,13 @@ export default function OnboardingPage() {
             선택한 팀의 상세 업무를 관리할 수 있으며, 타 팀의 업무는 자동으로 격리 보호됩니다.
           </p>
         </div>
+
+        {errorMessage && (
+          <div className="flex items-center gap-2 rounded-xl bg-destructive/10 p-3 text-xs text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
           {/* Name input */}

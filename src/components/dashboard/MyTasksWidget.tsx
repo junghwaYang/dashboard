@@ -20,9 +20,10 @@ import {
 } from '@/components/ui/select';
 
 export function MyTasksWidget() {
-  const { currentProfile, tasks, updateTaskStatus } = useDashboard();
+  const { currentProfile, authUser, tasks, updateTaskStatus } = useDashboard();
 
-  const myTasks = tasks.filter((t) => t.assignee_id === currentProfile.id);
+  const userId = currentProfile?.id || authUser?.id;
+  const myTasks = userId ? tasks.filter((t) => t.assignee_id === userId) : [];
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
@@ -61,11 +62,13 @@ export function MyTasksWidget() {
           </div>
           <div>
             <h3 className="font-bold text-sm text-foreground">내 담당 업무 (My Tasks)</h3>
-            <p className="text-[11px] text-muted-foreground">{currentProfile.full_name} 님에게 배정된 업무 목록</p>
+            <p className="text-[11px] text-muted-foreground">
+              {currentProfile?.full_name || authUser?.email?.split('@')[0] || '나'} 님에게 배정된 실시간 업무 목록
+            </p>
           </div>
         </div>
 
-        {currentProfile.team_id && (
+        {currentProfile?.team_id && (
           <Link
             href={`/teams/${currentProfile.team_id}`}
             className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"

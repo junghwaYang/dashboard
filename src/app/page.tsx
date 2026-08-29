@@ -6,18 +6,19 @@ import { KpiWidget } from '@/components/dashboard/KpiWidget';
 import { TeamSummaryCard } from '@/components/dashboard/TeamSummaryCard';
 import { MyTasksWidget } from '@/components/dashboard/MyTasksWidget';
 import { TaskModal } from '@/components/common/TaskModal';
+import Link from 'next/link';
 import { 
-  Sparkles, 
   Plus, 
   CalendarDays, 
   Layers, 
   TrendingUp, 
-  ShieldCheck 
+  LogIn,
+  Users
 } from 'lucide-react';
 import { TeamId } from '@/types/dashboard';
 
 export default function OverviewPage() {
-  const { currentProfile, summaryStats, overviewMetrics } = useDashboard();
+  const { currentProfile, authUser, summaryStats, overviewMetrics, isLoading } = useDashboard();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const todayFormatted = new Date().toLocaleDateString('ko-KR', {
@@ -27,7 +28,7 @@ export default function OverviewPage() {
     weekday: 'long',
   });
 
-  const userTeamId: TeamId = currentProfile.team_id || 'planning';
+  const userTeamId: TeamId = currentProfile?.team_id || 'planning';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -39,22 +40,48 @@ export default function OverviewPage() {
             <span>{todayFormatted}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight mt-1">
-            안녕하세요, <span className="text-primary">{currentProfile.full_name}</span> 님 👋
+            {authUser ? (
+              <>
+                안녕하세요, <span className="text-primary">{currentProfile?.full_name || authUser.email?.split('@')[0]}</span> 님 👋
+              </>
+            ) : (
+              <>전사 업무현황 대시보드</>
+            )}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            오늘의 전사 업무 현황 요약 및 소속 팀의 주요 마일스톤을 확인하세요.
+            {authUser
+              ? '실시간 Supabase DB와 연동된 전사 업무 현황 요약 및 소속 팀의 주요 마일스톤을 확인하세요.'
+              : '팀별 업무 현황을 한눈에 파악하려면 로그인해 주세요.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
-          {currentProfile.team_id && (
-            <button
-              onClick={() => setIsModalOpen(true)}
+          {authUser ? (
+            currentProfile?.team_id ? (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs sm:text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition"
+              >
+                <Plus className="h-4 w-4" />
+                <span>새 업무 등록</span>
+              </button>
+            ) : (
+              <Link
+                href="/onboarding"
+                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs sm:text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition"
+              >
+                <Users className="h-4 w-4" />
+                <span>소속 팀 설정하기</span>
+              </Link>
+            )
+          ) : (
+            <Link
+              href="/login"
               className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs sm:text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition"
             >
-              <Plus className="h-4 w-4" />
-              <span>새 업무 등록</span>
-            </button>
+              <LogIn className="h-4 w-4" />
+              <span>Google 로그인</span>
+            </Link>
           )}
         </div>
       </div>
@@ -64,7 +91,7 @@ export default function OverviewPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <span>전사 업무 진행 지표</span>
+            <span>전사 업무 진행 지표 (Supabase 실시간)</span>
           </h2>
         </div>
         <KpiWidget metrics={overviewMetrics} />
@@ -91,17 +118,21 @@ export default function OverviewPage() {
         </div>
       </section>
 
-      {/* My Tasks Section */}
-      <section>
-        <MyTasksWidget />
-      </section>
+      {/* My Tasks Section (only when logged in) */}
+      {authUser && (
+        <section>
+          <MyTasksWidget />
+        </section>
+      )}
 
       {/* Task Modal */}
-      <TaskModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        teamId={userTeamId}
-      />
+      {currentProfile?.team_id && (
+        <TaskModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          teamId={userTeamId}
+        />
+      )}
     </div>
   );
 }

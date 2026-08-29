@@ -7,10 +7,10 @@ import {
   LayoutDashboard, 
   Database, 
   ChevronDown, 
-  Check, 
-  Sparkles, 
   Users, 
-  LogIn 
+  LogIn,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 import { TeamId } from '@/types/dashboard';
 import {
@@ -23,9 +23,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export function Navbar() {
-  const { currentProfile, setCurrentProfile, profiles, isSupabaseConnected } = useDashboard();
+  const { currentProfile, authUser, isSupabaseConnected, signOut } = useDashboard();
 
-  const getTeamBadgeColor = (teamId: TeamId | null, role: string) => {
+  const getTeamBadgeColor = (teamId: TeamId | null | undefined, role?: string) => {
     if (role === 'admin') return 'bg-amber-100 text-amber-800 border-amber-300';
     switch (teamId) {
       case 'planning':
@@ -39,7 +39,7 @@ export function Navbar() {
     }
   };
 
-  const getTeamName = (teamId: TeamId | null, role: string) => {
+  const getTeamName = (teamId: TeamId | null | undefined, role?: string) => {
     if (role === 'admin') return '총괄 관리자 (전체 열람)';
     switch (teamId) {
       case 'planning':
@@ -71,109 +71,90 @@ export function Navbar() {
             {isSupabaseConnected ? (
               <span className="flex items-center gap-1 text-emerald-600 font-semibold">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Supabase 연결됨
+                Supabase DB 실시간 연결됨
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-muted-foreground">
+              <span className="flex items-center gap-1 text-amber-600 font-semibold">
                 <span className="h-2 w-2 rounded-full bg-amber-500" />
-                데모 / 로컬 모드
+                연결 확인 중...
               </span>
             )}
           </div>
         </div>
 
-        {/* Right section: Profile & shadcn Dropdown Menu */}
+        {/* Right section: Profile or Login Button */}
         <div className="flex items-center gap-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-2 rounded-xl border border-border bg-card hover:bg-accent/60 transition shadow-sm outline-none focus:ring-2 focus:ring-primary"
-                title="클릭하여 다른 팀 계정으로 전환해 권한 격리를 테스트해보세요"
-              >
-                <div className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={currentProfile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                    alt={currentProfile.full_name}
-                    className="h-8 w-8 rounded-full object-cover border border-border"
-                  />
-                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background" />
-                </div>
-                <div className="hidden md:flex flex-col text-left">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-foreground leading-none">{currentProfile.full_name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold border ${getTeamBadgeColor(currentProfile.team_id, currentProfile.role)}`}>
-                      {getTeamName(currentProfile.team_id, currentProfile.role)}
-                    </span>
+          {authUser ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-2 rounded-xl border border-border bg-card hover:bg-accent/60 transition shadow-sm outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={
+                        currentProfile?.avatar_url ||
+                        authUser?.user_metadata?.avatar_url ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+                      }
+                      alt={currentProfile?.full_name || 'User'}
+                      className="h-8 w-8 rounded-full object-cover border border-border"
+                    />
+                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background" />
                   </div>
-                  <span className="text-[11px] text-muted-foreground mt-0.5">{currentProfile.email}</span>
+                  <div className="hidden md:flex flex-col text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-foreground leading-none">
+                        {currentProfile?.full_name || authUser?.email?.split('@')[0] || '사용자'}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold border ${getTeamBadgeColor(currentProfile?.team_id, currentProfile?.role)}`}>
+                        {getTeamName(currentProfile?.team_id, currentProfile?.role)}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground mt-0.5">{authUser.email}</span>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground ml-1" />
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="w-64 p-1.5">
+                <DropdownMenuLabel className="font-semibold text-xs">내 계정</DropdownMenuLabel>
+                <div className="px-2 py-1 text-xs text-muted-foreground">
+                  {authUser.email}
                 </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground ml-1" />
-              </button>
-            </DropdownMenuTrigger>
+                <DropdownMenuSeparator />
 
-            <DropdownMenuContent align="end" className="w-72 p-2">
-              <div className="px-2 py-1.5 mb-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">권한 테스트 (계정 전환)</span>
-                  <span className="text-[10px] text-primary flex items-center gap-0.5 font-medium">
-                    <Sparkles className="h-3 w-3" /> 팀별 격리 테스트
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  계정을 변경하여 각 팀별 접근 권한 제한을 확인하세요.
-                </p>
-              </div>
-              <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/onboarding"
+                    className="flex items-center gap-2 cursor-pointer text-xs"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    <span>소속 팀 변경 / 온보딩</span>
+                  </Link>
+                </DropdownMenuItem>
 
-              <div className="space-y-1">
-                {profiles.map((p) => {
-                  const isSelected = p.id === currentProfile.id;
-                  return (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onClick={() => setCurrentProfile(p)}
-                      className={`flex items-center justify-between p-2 rounded-lg cursor-pointer ${
-                        isSelected ? 'bg-primary/10 text-primary font-medium' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={p.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                          alt={p.full_name}
-                          className="h-7 w-7 rounded-full object-cover"
-                        />
-                        <div>
-                          <div className="font-semibold text-xs">{p.full_name}</div>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold border ${getTeamBadgeColor(p.team_id, p.role)}`}>
-                            {getTeamName(p.team_id, p.role)}
-                          </span>
-                        </div>
-                      </div>
-                      {isSelected && <Check className="h-4 w-4 text-primary ml-auto" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </div>
+                <DropdownMenuSeparator />
 
-              <DropdownMenuSeparator />
-              <div className="flex items-center justify-between pt-1">
-                <Link
-                  href="/onboarding"
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-accent transition"
+                <DropdownMenuItem
+                  onClick={signOut}
+                  className="flex items-center gap-2 text-destructive cursor-pointer text-xs focus:text-destructive focus:bg-destructive/10"
                 >
-                  <Users className="h-3.5 w-3.5" /> 팀 변경/온보딩
-                </Link>
-                <Link
-                  href="/login"
-                  className="text-xs text-primary hover:underline flex items-center gap-1 px-2 py-1.5"
-                >
-                  <LogIn className="h-3.5 w-3.5" /> 로그인 화면
-                </Link>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>로그아웃</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link
+              href="/login"
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              <span>로그인</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>

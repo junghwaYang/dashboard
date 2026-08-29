@@ -23,7 +23,7 @@ interface TeamSummaryCardProps {
 export function TeamSummaryCard({ stat }: TeamSummaryCardProps) {
   const { canAccessTeam, currentProfile } = useDashboard();
   const isAllowed = canAccessTeam(stat.team_id);
-  const isMyTeam = currentProfile.team_id === stat.team_id;
+  const isMyTeam = currentProfile?.team_id === stat.team_id;
 
   const getTeamDetails = (teamId: TeamId) => {
     switch (teamId) {
