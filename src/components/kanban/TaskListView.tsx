@@ -6,14 +6,17 @@ import { useDashboard } from '@/context/dashboard-context';
 import { formatDate, getDaysRemaining } from '@/lib/utils';
 import { 
   Search, 
-  Filter, 
-  Calendar, 
   Edit3, 
   Trash2, 
-  ArrowUpDown,
-  User,
   Plus
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface TaskListViewProps {
   teamId: TeamId;
@@ -69,55 +72,64 @@ export function TaskListView({ teamId, tasks, onEditTask, onAddTask }: TaskListV
   return (
     <div className="space-y-4">
       {/* Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card p-4 rounded-2xl border border-border">
-        <div className="relative w-full sm:w-72">
+      <div className="flex flex-col lg:flex-row gap-3 items-center justify-between bg-card p-4 rounded-2xl border border-border">
+        <div className="relative w-full lg:w-80">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="업무 제목 또는 설명 검색..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full pl-9 pr-3 py-2 rounded-xl border border-input bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
           {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="ALL">전체 상태</option>
-            <option value="TODO">대기 (TODO)</option>
-            <option value="IN_PROGRESS">진행중</option>
-            <option value="IN_REVIEW">검토중</option>
-            <option value="DONE">완료</option>
-          </select>
+          <div className="w-36">
+            <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val)}>
+              <SelectTrigger>
+                <SelectValue placeholder="상태 필터" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">전체 상태</SelectItem>
+                <SelectItem value="TODO">대기 (TODO)</SelectItem>
+                <SelectItem value="IN_PROGRESS">진행중</SelectItem>
+                <SelectItem value="IN_REVIEW">검토중</SelectItem>
+                <SelectItem value="DONE">완료</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Priority Filter */}
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="ALL">전체 우선순위</option>
-            <option value="URGENT">긴급</option>
-            <option value="HIGH">높음</option>
-            <option value="MEDIUM">보통</option>
-            <option value="LOW">낮음</option>
-          </select>
+          <div className="w-36">
+            <Select value={priorityFilter} onValueChange={(val) => setPriorityFilter(val)}>
+              <SelectTrigger>
+                <SelectValue placeholder="우선순위 필터" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">전체 우선순위</SelectItem>
+                <SelectItem value="URGENT">긴급 (URGENT)</SelectItem>
+                <SelectItem value="HIGH">높음 (HIGH)</SelectItem>
+                <SelectItem value="MEDIUM">보통 (MEDIUM)</SelectItem>
+                <SelectItem value="LOW">낮음 (LOW)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Sort By */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'due_date' | 'priority' | 'title')}
-            className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="due_date">마감일순 정렬</option>
-            <option value="priority">우선순위순 정렬</option>
-            <option value="title">가나다순 정렬</option>
-          </select>
+          <div className="w-36">
+            <Select value={sortBy} onValueChange={(val) => setSortBy(val as 'due_date' | 'priority' | 'title')}>
+              <SelectTrigger>
+                <SelectValue placeholder="정렬 기준" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="due_date">마감일순 정렬</SelectItem>
+                <SelectItem value="priority">우선순위순 정렬</SelectItem>
+                <SelectItem value="title">가나다순 정렬</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <button
             onClick={onAddTask}
@@ -134,12 +146,12 @@ export function TaskListView({ teamId, tasks, onEditTask, onAddTask }: TaskListV
           <table className="w-full text-left text-xs">
             <thead className="bg-secondary/60 text-muted-foreground border-b border-border font-semibold">
               <tr>
-                <th className="py-3.5 px-4">우선순위</th>
-                <th className="py-3.5 px-4 min-w-[200px]">업무 제목 & 설명</th>
-                <th className="py-3.5 px-4">상태</th>
-                <th className="py-3.5 px-4">담당자</th>
-                <th className="py-3.5 px-4">마감일</th>
-                <th className="py-3.5 px-4 text-right">작업</th>
+                <th className="py-3.5 px-4 w-28">우선순위</th>
+                <th className="py-3.5 px-4 min-w-[240px]">업무 제목 & 설명</th>
+                <th className="py-3.5 px-4 w-36">상태</th>
+                <th className="py-3.5 px-4 w-40">담당자</th>
+                <th className="py-3.5 px-4 w-36">마감일</th>
+                <th className="py-3.5 px-4 text-right w-24">작업</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -155,7 +167,7 @@ export function TaskListView({ teamId, tasks, onEditTask, onAddTask }: TaskListV
                     <td className="py-3.5 px-4">
                       <div 
                         onClick={() => onEditTask(task)}
-                        className="font-bold text-foreground hover:text-primary cursor-pointer"
+                        className="font-bold text-foreground hover:text-primary cursor-pointer text-xs"
                       >
                         {task.title}
                       </div>
@@ -166,16 +178,22 @@ export function TaskListView({ teamId, tasks, onEditTask, onAddTask }: TaskListV
                       )}
                     </td>
                     <td className="py-3.5 px-4">
-                      <select
-                        value={task.status}
-                        onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
-                        className="rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                      >
-                        <option value="TODO">대기</option>
-                        <option value="IN_PROGRESS">진행중</option>
-                        <option value="IN_REVIEW">검토중</option>
-                        <option value="DONE">완료</option>
-                      </select>
+                      <div className="w-28">
+                        <Select
+                          value={task.status}
+                          onValueChange={(val) => updateTaskStatus(task.id, val as TaskStatus)}
+                        >
+                          <SelectTrigger className="h-8 text-xs font-semibold">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="TODO">대기</SelectItem>
+                            <SelectItem value="IN_PROGRESS">진행중</SelectItem>
+                            <SelectItem value="IN_REVIEW">검토중</SelectItem>
+                            <SelectItem value="DONE">완료</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       {task.assignee ? (

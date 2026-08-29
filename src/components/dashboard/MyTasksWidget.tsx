@@ -6,18 +6,22 @@ import { useDashboard } from '@/context/dashboard-context';
 import { formatDate, getDaysRemaining } from '@/lib/utils';
 import { 
   CheckCircle2, 
-  Clock, 
   ArrowRight, 
   Calendar, 
-  AlertCircle,
   Inbox
 } from 'lucide-react';
 import { TaskStatus } from '@/types/dashboard';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export function MyTasksWidget() {
   const { currentProfile, tasks, updateTaskStatus } = useDashboard();
 
-  // Filter tasks assigned to current user (or if admin, show all user tasks)
   const myTasks = tasks.filter((t) => t.assignee_id === currentProfile.id);
 
   const getPriorityBadge = (priority: string) => {
@@ -111,19 +115,23 @@ export function MyTasksWidget() {
                     </span>
                   )}
 
-                  {/* Status Dropdown */}
-                  <select
-                    value={task.status}
-                    onChange={(e) => updateTaskStatus(task.id, e.target.value as TaskStatus)}
-                    className={`text-xs rounded-lg px-2.5 py-1 font-semibold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary ${getStatusBadge(
-                      task.status
-                    )}`}
-                  >
-                    <option value="TODO">대기</option>
-                    <option value="IN_PROGRESS">진행중</option>
-                    <option value="IN_REVIEW">검토중</option>
-                    <option value="DONE">완료</option>
-                  </select>
+                  {/* shadcn Custom Select */}
+                  <div className="w-28">
+                    <Select
+                      value={task.status}
+                      onValueChange={(val) => updateTaskStatus(task.id, val as TaskStatus)}
+                    >
+                      <SelectTrigger className={`h-8 text-xs font-semibold border ${getStatusBadge(task.status)}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TODO">대기</SelectItem>
+                        <SelectItem value="IN_PROGRESS">진행중</SelectItem>
+                        <SelectItem value="IN_REVIEW">검토중</SelectItem>
+                        <SelectItem value="DONE">완료</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             );

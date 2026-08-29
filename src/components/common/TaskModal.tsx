@@ -4,6 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { Task, TeamId, TaskStatus, TaskPriority } from '@/types/dashboard';
 import { useDashboard } from '@/context/dashboard-context';
 import { X, Calendar, AlertCircle, User, Flag, CheckCircle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -19,7 +26,7 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<TaskStatus>('TODO');
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
-  const [assigneeId, setAssigneeId] = useState<string>('');
+  const [assigneeId, setAssigneeId] = useState<string>('unassigned');
   const [dueDate, setDueDate] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -30,14 +37,14 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
       setDescription(taskToEdit.description || '');
       setStatus(taskToEdit.status);
       setPriority(taskToEdit.priority);
-      setAssigneeId(taskToEdit.assignee_id || '');
+      setAssigneeId(taskToEdit.assignee_id || 'unassigned');
       setDueDate(taskToEdit.due_date || '');
     } else {
       setTitle('');
       setDescription('');
       setStatus('TODO');
       setPriority('MEDIUM');
-      setAssigneeId('');
+      setAssigneeId('unassigned');
       setDueDate('');
     }
     setErrorMessage(null);
@@ -58,6 +65,8 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    const actualAssigneeId = assigneeId === 'unassigned' ? null : assigneeId;
+
     try {
       if (taskToEdit) {
         await updateTask(taskToEdit.id, {
@@ -65,7 +74,7 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
           description: description.trim() || null,
           status,
           priority,
-          assignee_id: assigneeId || null,
+          assignee_id: actualAssigneeId,
           due_date: dueDate || null,
         });
       } else {
@@ -75,7 +84,7 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
           status,
           priority,
           team_id: teamId,
-          assignee_id: assigneeId || null,
+          assignee_id: actualAssigneeId,
           due_date: dueDate || null,
         });
       }
@@ -155,32 +164,34 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
               <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1">
                 <CheckCircle className="h-3.5 w-3.5 text-primary" /> 상태
               </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="TODO">대기 (TODO)</option>
-                <option value="IN_PROGRESS">진행중 (IN_PROGRESS)</option>
-                <option value="IN_REVIEW">검토중 (IN_REVIEW)</option>
-                <option value="DONE">완료 (DONE)</option>
-              </select>
+              <Select value={status} onValueChange={(val) => setStatus(val as TaskStatus)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TODO">대기 (TODO)</SelectItem>
+                  <SelectItem value="IN_PROGRESS">진행중 (IN_PROGRESS)</SelectItem>
+                  <SelectItem value="IN_REVIEW">검토중 (IN_REVIEW)</SelectItem>
+                  <SelectItem value="DONE">완료 (DONE)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1">
                 <Flag className="h-3.5 w-3.5 text-amber-500" /> 우선순위
               </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="LOW">낮음 (LOW)</option>
-                <option value="MEDIUM">보통 (MEDIUM)</option>
-                <option value="HIGH">높음 (HIGH)</option>
-                <option value="URGENT">긴급 (URGENT)</option>
-              </select>
+              <Select value={priority} onValueChange={(val) => setPriority(val as TaskPriority)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LOW">낮음 (LOW)</SelectItem>
+                  <SelectItem value="MEDIUM">보통 (MEDIUM)</SelectItem>
+                  <SelectItem value="HIGH">높음 (HIGH)</SelectItem>
+                  <SelectItem value="URGENT">긴급 (URGENT)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -190,18 +201,19 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
               <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1">
                 <User className="h-3.5 w-3.5 text-blue-500" /> 담당자
               </label>
-              <select
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">담당자 미지정</option>
-                {teamProfiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name} ({p.role === 'admin' ? '관리자' : p.team_id})
-                  </option>
-                ))}
-              </select>
+              <Select value={assigneeId} onValueChange={(val) => setAssigneeId(val)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="담당자 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">담당자 미지정</SelectItem>
+                  {teamProfiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.full_name} ({p.role === 'admin' ? '관리자' : p.team_id})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -212,7 +224,7 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-10 rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
               />
             </div>
           </div>
