@@ -83,26 +83,10 @@ export default function LoginPage() {
       });
 
       if (signInError) {
-        // If not registered, attempt Sign Up
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: email.split('@')[0],
-            },
-          },
-        });
-
-        if (signUpError) throw signUpError;
-
-        if (signUpData.session) {
-          router.push('/onboarding');
-        } else {
-          setInfoMessage('인증 메일이 발송되었습니다. 메일함 또는 콘솔을 확인해 주세요.');
-        }
+        // If password login failed, throw error
+        throw signInError;
       } else if (signInData.session) {
-        router.push('/');
+        window.location.href = '/';
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '인증 처리 중 오류가 발생했습니다.';
