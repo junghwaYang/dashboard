@@ -4,15 +4,17 @@ import { cookies } from 'next/headers';
 export function createClient() {
   const cookieStore = cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     return null;
   }
 
   return createServerClient(
     supabaseUrl,
-    supabaseAnonKey,
+    supabaseKey,
     {
       cookies: {
         getAll() {
@@ -24,7 +26,7 @@ export function createClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // Ignored if called from Server Component
+            // The `setAll` method was called from a Server Component.
           }
         },
       },
