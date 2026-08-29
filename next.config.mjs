@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false,
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Node.js 환경에서 Webpack 디스크 캐시 스냅샷 실패 및 청크 유실(404) 방지
+      config.cache = false;
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {
@@ -14,7 +21,7 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'images.unsplash.com',
-      }
+      },
     ],
   },
 };
