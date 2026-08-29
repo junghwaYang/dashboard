@@ -214,15 +214,39 @@ export default function LoginPage() {
               >
                 {isLoading ? '처리 중...' : '이메일로 로그인 / 회원가입'}
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@dashboard.app');
+                  setPassword('admin123@!');
+                }}
+                className="w-full text-center text-[11px] text-primary hover:underline pt-1"
+              >
+                🔑 최고관리자(Admin) 계정 정보 자동 입력
+              </button>
             </form>
           ) : (
-            <button
-              onClick={() => setIsEmailMode(true)}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-secondary/80 hover:bg-secondary p-2.5 text-xs font-semibold text-secondary-foreground transition"
-            >
-              <Mail className="h-4 w-4" />
-              <span>이메일 및 비밀번호로 로그인</span>
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => setIsEmailMode(true)}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-secondary/80 hover:bg-secondary p-2.5 text-xs font-semibold text-secondary-foreground transition"
+              >
+                <Mail className="h-4 w-4" />
+                <span>이메일 및 비밀번호로 로그인</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsEmailMode(true);
+                  setEmail('admin@dashboard.app');
+                  setPassword('admin123@!');
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50 p-2.5 text-xs font-semibold hover:bg-amber-100 transition"
+              >
+                <span>🔑 최고관리자 (admin@dashboard.app) 로그인</span>
+              </button>
+            </div>
           )}
         </div>
 
