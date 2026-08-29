@@ -130,19 +130,22 @@ export function Sidebar() {
                       : 'text-muted-foreground/60 hover:bg-accent/40 cursor-not-allowed opacity-80'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 truncate">
-                    <div className={`p-1.5 rounded-lg border ${item.color}`}>
+                  <div className="flex items-center gap-2.5 truncate flex-1">
+                    <div className={`p-1.5 rounded-lg border shrink-0 ${item.color}`}>
                       <Icon className="h-4 w-4" />
                     </div>
-                    <span className="truncate">{item.name}</span>
+                    <div className="flex flex-col truncate">
+                      {isMyTeam && (
+                        <span className="text-[9px] text-primary font-bold leading-none mb-0.5 inline-flex items-center gap-1">
+                          <span className="h-1 w-1 rounded-full bg-primary" />
+                          내 팀
+                        </span>
+                      )}
+                      <span className="truncate leading-tight">{item.name}</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    {isMyTeam && (
-                      <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">
-                        내 팀
-                      </span>
-                    )}
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
                     {isAllowed ? (
                       <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full font-semibold">
                         {count}
