@@ -122,6 +122,8 @@ export default function TeamWorkspacePage() {
     );
   }
 
+  const isMyTeam = currentProfile.team_id === teamId;
+
   // ✅ AUTHORIZED TEAM WORKSPACE VIEW
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -132,14 +134,22 @@ export default function TeamWorkspacePage() {
             {getTeamIcon(teamId)}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
-                {team?.name} 워크스페이스
-              </h1>
-              <span className="text-[11px] bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full font-bold">
+            {/* Top Label (내 팀 / 업무 수) */}
+            <div className="flex items-center gap-2 mb-1">
+              {isMyTeam && (
+                <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  내 팀
+                </span>
+              )}
+              <span className="text-[11px] bg-secondary text-secondary-foreground border border-border px-2 py-0.5 rounded-full font-semibold">
                 {teamTasks.length}개의 업무
               </span>
             </div>
+
+            <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
+              {team?.name} 워크스페이스
+            </h1>
             <p className="text-xs text-muted-foreground mt-0.5">{team?.description}</p>
           </div>
         </div>
