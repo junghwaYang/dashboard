@@ -37,6 +37,44 @@ export interface Task {
   created_at: string;
   updated_at: string;
   assignee?: Profile | null;
+  is_archived?: boolean;
+  archived_at?: string | null;
+  cycle_week?: string | null;
+  archive_batch_id?: string | null;
+}
+
+export type ArchiveLogStatus = 'SUCCESS' | 'FAILED' | 'ROLLED_BACK';
+
+export interface WeeklyArchiveLog {
+  id: string;
+  cycle_week: string;
+  status: ArchiveLogStatus;
+  executed_at: string;
+  executed_by: string | null;
+  total_tasks_before: number;
+  archived_count: number;
+  active_tasks_after: number;
+  error_message: string | null;
+  details: {
+    team_breakdown?: Record<string, number>;
+    rolled_back_at?: string;
+    rolled_back_by?: string | null;
+    restored_count?: number;
+    timestamp?: string;
+    [key: string]: unknown;
+  } | null;
+  executor?: Profile | null;
+}
+
+export interface ArchiveExecutionResult {
+  success: boolean;
+  batch_id?: string;
+  cycle_week?: string;
+  total_before?: number;
+  archived_count?: number;
+  active_after?: number;
+  restored_count?: number;
+  error?: string;
 }
 
 export interface TeamSummaryStat {
@@ -57,3 +95,4 @@ export interface OverviewMetrics {
   urgentTasks: number;
   completionRate: number;
 }
+

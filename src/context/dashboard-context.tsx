@@ -1,7 +1,18 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { Team, Profile, Task, TeamId, TaskStatus, TeamSummaryStat, OverviewMetrics, UserRole } from '@/types/dashboard';
+import { 
+  Team, 
+  Profile, 
+  Task, 
+  TeamId, 
+  TaskStatus, 
+  TeamSummaryStat, 
+  OverviewMetrics, 
+  UserRole,
+  WeeklyArchiveLog,
+  ArchiveExecutionResult
+} from '@/types/dashboard';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
@@ -32,6 +43,11 @@ interface DashboardContextType {
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<Task>;
   deleteTask: (taskId: string) => Promise<void>;
   updateTaskStatus: (taskId: string, status: TaskStatus) => Promise<void>;
+  executeWeeklyArchive: () => Promise<ArchiveExecutionResult>;
+  rollbackWeeklyArchive: (batchId: string) => Promise<ArchiveExecutionResult>;
+  restoreArchivedTask: (taskId: string, targetStatus?: TaskStatus) => Promise<boolean>;
+  fetchArchivedTasks: (teamId?: TeamId, cycleWeek?: string) => Promise<Task[]>;
+  fetchArchiveLogs: () => Promise<WeeklyArchiveLog[]>;
   summaryStats: TeamSummaryStat[];
   overviewMetrics: OverviewMetrics;
   getTasksByTeam: (teamId: TeamId) => Task[];
@@ -141,10 +157,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setCurrentProfile(null);
       }
 
-      // 4. Fetch Tasks with Assignee profiles
+      // 4. Fetch Active Tasks with Assignee profiles (is_archived = false)
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('*, assignee:profiles!assignee_id(*)')
+        .eq('is_archived', false)
         .order('created_at', { ascending: false });
 
       if (!tasksError && tasksData) {
@@ -191,6 +208,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           const { data } = await supabase
             .from('tasks')
             .select('*, assignee:profiles!assignee_id(*)')
+            .eq('is_archived', false)
             .order('created_at', { ascending: false });
           if (data) {
             setTasks(data as Task[]);
@@ -346,6 +364,119 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [updateTask]
   );
 
+  // Execute Weekly Archive (주간 업무 마감 및 아카이빙)
+  const executeWeeklyArchive = useCallback(async (): Promise<ArchiveExecutionResult> => {
+    const supabase = createClient();
+    if (!supabase) throw new Error('Supabase client is not available');
+
+    const { data, error } = await supabase.rpc('execute_weekly_archive', {
+      p_executed_by: authUser?.id || null,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const result = data as ArchiveExecutionResult;
+    await fetchData(authUser);
+    return result;
+  }, [authUser, fetchData]);
+
+  // Rollback Weekly Archive (주간 마감 일괄 롤백)
+  const rollbackWeeklyArchive = useCallback(
+    async (batchId: string): Promise<ArchiveExecutionResult> => {
+      const supabase = createClient();
+      if (!supabase) throw new Error('Supabase client is not available');
+
+      const { data, error } = await supabase.rpc('rollback_weekly_archive', {
+        p_batch_id: batchId,
+        p_executed_by: authUser?.id || null,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const result = data as ArchiveExecutionResult;
+      await fetchData(authUser);
+      return result;
+    },
+    [authUser, fetchData]
+  );
+
+  // Restore Archived Task (실수로 보관된 개별 업무 복구)
+  const restoreArchivedTask = useCallback(
+    async (taskId: string, targetStatus: TaskStatus = 'IN_PROGRESS'): Promise<boolean> => {
+      const supabase = createClient();
+      if (!supabase) throw new Error('Supabase client is not available');
+
+      const { data, error } = await supabase.rpc('restore_archived_task', {
+        p_task_id: taskId,
+        p_target_status: targetStatus,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || '업무 복구에 실패했습니다.');
+      }
+
+      await fetchData(authUser);
+      return true;
+    },
+    [authUser, fetchData]
+  );
+
+  // Fetch Archived Tasks (보관된 업무 목록 조회)
+  const fetchArchivedTasks = useCallback(
+    async (teamId?: TeamId, cycleWeek?: string): Promise<Task[]> => {
+      const supabase = createClient();
+      if (!supabase) return [];
+
+      let query = supabase
+        .from('tasks')
+        .select('*, assignee:profiles!assignee_id(*)')
+        .eq('is_archived', true)
+        .order('archived_at', { ascending: false });
+
+      if (teamId) {
+        query = query.eq('team_id', teamId);
+      }
+      if (cycleWeek) {
+        query = query.eq('cycle_week', cycleWeek);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Failed to fetch archived tasks:', error);
+        return [];
+      }
+
+      return (data as Task[]) || [];
+    },
+    []
+  );
+
+  // Fetch Archive Logs (주간 마감 실행 이력 조회)
+  const fetchArchiveLogs = useCallback(async (): Promise<WeeklyArchiveLog[]> => {
+    const supabase = createClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('weekly_archive_logs')
+      .select('*, executor:profiles!executed_by(*)')
+      .order('executed_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch archive logs:', error);
+      return [];
+    }
+
+    return (data as WeeklyArchiveLog[]) || [];
+  }, []);
+
   // Sign Out from Google / Supabase
   const signOut = useCallback(async () => {
     const supabase = createClient();
@@ -433,6 +564,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         updateTask,
         deleteTask,
         updateTaskStatus,
+        executeWeeklyArchive,
+        rollbackWeeklyArchive,
+        restoreArchivedTask,
+        fetchArchivedTasks,
+        fetchArchiveLogs,
         summaryStats,
         overviewMetrics,
         getTasksByTeam,
