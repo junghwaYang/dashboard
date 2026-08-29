@@ -1,30 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { 
   LayoutDashboard, 
-  Sparkles, 
   ShieldCheck, 
-  Lock, 
-  ArrowRight,
-  Mail,
-  AlertCircle
+  AlertCircle,
+  Users,
+  Lock
 } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  // Email login state for direct login option
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isEmailMode, setIsEmailMode] = useState(false);
-
-  // 1. Google OAuth Real Login
+  // Google OAuth Login
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -56,63 +46,23 @@ export default function LoginPage() {
     }
   };
 
-  // 2. Email Direct Sign In / Sign Up
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setErrorMessage('이메일과 비밀번호를 입력해 주세요.');
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage(null);
-    setInfoMessage(null);
-    const supabase = createClient();
-
-    if (!supabase) {
-      setErrorMessage('Supabase 클라이언트를 초기화할 수 없습니다.');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      // Try Sign In first
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInError) {
-        // If password login failed, throw error
-        throw signInError;
-      } else if (signInData.session) {
-        window.location.href = '/';
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '인증 처리 중 오류가 발생했습니다.';
-      setErrorMessage(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="flex min-h-[80vh] items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Logo & Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md mb-2">
-            <LayoutDashboard className="h-6 w-6" />
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg mb-2 ring-4 ring-primary/10">
+            <LayoutDashboard className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
             업무현황 대시보드 로그인
           </h1>
-          <p className="text-xs text-muted-foreground">
-            Supabase 실시간 데이터베이스 연동 & 팀별 격리 워크스페이스
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            기획팀, 디자인팀, 개발팀의 격리된 워크스페이스 & 실시간 전사 현황 관리
           </p>
         </div>
 
-        {/* Error / Info Alerts */}
+        {/* Error Alert */}
         {errorMessage && (
           <div className="flex items-center gap-2 rounded-xl bg-destructive/10 p-3 text-xs text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
@@ -120,19 +70,20 @@ export default function LoginPage() {
           </div>
         )}
 
-        {infoMessage && (
-          <div className="rounded-xl bg-blue-50 dark:bg-blue-950/40 p-3 text-xs text-blue-700 dark:text-blue-300 border border-blue-200">
-            {infoMessage}
+        {/* Login Card */}
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="space-y-1 text-center">
+            <h2 className="text-sm font-bold text-foreground">사내 Google 계정으로 시작하기</h2>
+            <p className="text-xs text-muted-foreground">
+              Google 로그인 후 본인의 소속 팀(기획/디자인/개발)을 선택하여 업무를 관리할 수 있습니다.
+            </p>
           </div>
-        )}
 
-        {/* Login Container */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
           {/* Google OAuth Button */}
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 rounded-xl border border-border bg-background hover:bg-accent/80 p-3.5 text-xs sm:text-sm font-semibold text-foreground transition shadow-sm hover:border-primary/40 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-3.5 rounded-xl border border-border bg-background hover:bg-accent/70 p-3.5 text-xs sm:text-sm font-semibold text-foreground transition shadow-sm hover:border-primary/50 disabled:opacity-50 group"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
@@ -152,96 +103,30 @@ export default function LoginPage() {
                 d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
               />
             </svg>
-            <span>{isLoading ? 'Google 로그인 연결 중...' : 'Google 계정으로 계속하기'}</span>
+            <span>{isLoading ? 'Google 로그인 연결 중...' : 'Google 계정으로 로그인'}</span>
           </button>
 
-          <div className="relative flex items-center justify-center my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+          {/* Feature Highlights */}
+          <div className="pt-2 border-t border-border/60 space-y-2 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Users className="h-3.5 w-3.5 text-primary" />
+              <span>팀별(기획/디자인/개발) 격리된 칸반 보드 및 업무 관리</span>
             </div>
-            <span className="relative bg-card px-3 text-[11px] font-medium text-muted-foreground uppercase">
-              또는 이메일 계정
-            </span>
+            <div className="flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5 text-primary" />
+              <span>타 팀 업무 상세 비공개 및 메인 수치 통계만 요약 제공</span>
+            </div>
           </div>
-
-          {/* Email / Password Form */}
-          {isEmailMode ? (
-            <form onSubmit={handleEmailAuth} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">이메일</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">비밀번호</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="6자리 이상 비밀번호"
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full rounded-xl bg-primary p-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-sm disabled:opacity-50"
-              >
-                {isLoading ? '처리 중...' : '이메일로 로그인 / 회원가입'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('admin@dashboard.app');
-                  setPassword('admin123@!');
-                }}
-                className="w-full text-center text-[11px] text-primary hover:underline pt-1"
-              >
-                🔑 최고관리자(Admin) 계정 정보 자동 입력
-              </button>
-            </form>
-          ) : (
-            <div className="space-y-2">
-              <button
-                onClick={() => setIsEmailMode(true)}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-secondary/80 hover:bg-secondary p-2.5 text-xs font-semibold text-secondary-foreground transition"
-              >
-                <Mail className="h-4 w-4" />
-                <span>이메일 및 비밀번호로 로그인</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setIsEmailMode(true);
-                  setEmail('admin@dashboard.app');
-                  setPassword('admin123@!');
-                }}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50 p-2.5 text-xs font-semibold hover:bg-amber-100 transition"
-              >
-                <span>🔑 최고관리자 (admin@dashboard.app) 로그인</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Security Notice */}
-        <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs text-muted-foreground text-center space-y-1">
+        <div className="rounded-xl border border-border bg-secondary/30 p-3.5 text-xs text-muted-foreground text-center space-y-1">
           <div className="flex items-center justify-center gap-1.5 font-semibold text-foreground">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            <span>Supabase Auth & RLS 보안 적용</span>
+            <span>Supabase RLS 보안 정책 적용</span>
           </div>
           <p className="text-[11px]">
-            로그인한 계정의 소속 팀 데이터만 안전하게 관리 및 격리됩니다.
+            Google OAuth 인증을 통해 본인 소속 팀의 데이터에만 안전하게 접근합니다.
           </p>
         </div>
       </div>

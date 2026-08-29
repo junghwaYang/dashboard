@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { Team, Profile, Task, TeamId, TaskStatus, TeamSummaryStat, OverviewMetrics } from '@/types/dashboard';
+import { Team, Profile, Task, TeamId, TaskStatus, TeamSummaryStat, OverviewMetrics, UserRole } from '@/types/dashboard';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
@@ -15,6 +15,7 @@ interface DashboardContextType {
   isLoading: boolean;
   isSupabaseConnected: boolean;
   setUserTeam: (teamId: TeamId) => Promise<void>;
+  setUserRole: (role: UserRole) => Promise<void>;
   createTask: (taskData: {
     title: string;
     description: string | null;
@@ -158,7 +159,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
         async () => {
-          // Re-fetch tasks on any insert/update/delete
           const { data } = await supabase
             .from('tasks')
             .select('*, assignee:profiles!assignee_id(*)')
@@ -186,6 +186,31 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         .from('profiles')
         .update({
           team_id: teamId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authUser.id)
+        .select()
+        .single();
+
+      if (!error && data) {
+        const updated = data as Profile;
+        setCurrentProfile(updated);
+        setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      }
+    },
+    [authUser]
+  );
+
+  // Set / Toggle User's Role (admin / member) for testing
+  const setUserRole = useCallback(
+    async (role: UserRole) => {
+      const supabase = createClient();
+      if (!supabase || !authUser) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          role: role,
           updated_at: new Date().toISOString(),
         })
         .eq('id', authUser.id)
@@ -241,7 +266,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const supabase = createClient();
       if (!supabase) throw new Error('Supabase client is not available');
 
-      // Sanitize assignee relation object if present in updates
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { assignee, ...cleanUpdates } = updates;
 
@@ -368,6 +392,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isSupabaseConnected,
         setUserTeam,
+        setUserRole,
         createTask,
         updateTask,
         deleteTask,
