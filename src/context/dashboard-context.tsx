@@ -114,7 +114,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       // 4. Fetch Tasks with Assignee profiles
       const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
-        .select('*, assignee:profiles(*)')
+        .select('*, assignee:profiles!assignee_id(*)')
         .order('created_at', { ascending: false });
 
       if (!tasksError && tasksData) {
@@ -161,7 +161,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           // Re-fetch tasks on any insert/update/delete
           const { data } = await supabase
             .from('tasks')
-            .select('*, assignee:profiles(*)')
+            .select('*, assignee:profiles!assignee_id(*)')
             .order('created_at', { ascending: false });
           if (data) {
             setTasks(data as Task[]);
@@ -221,7 +221,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           ...taskData,
           created_by: authUser?.id || null,
         })
-        .select('*, assignee:profiles(*)')
+        .select('*, assignee:profiles!assignee_id(*)')
         .single();
 
       if (error) {
@@ -252,7 +252,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', taskId)
-        .select('*, assignee:profiles(*)')
+        .select('*, assignee:profiles!assignee_id(*)')
         .single();
 
       if (error) {
