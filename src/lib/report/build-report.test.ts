@@ -227,7 +227,7 @@ test('다음 주차 — 이전/다음이 서로 되돌린다 (53주 경계 포�
 // ─────────────────────────────────────────────────────────────
 // Codex 리뷰(2026-08-31)에서 지적된 케이스. 기존 16건에는 이 조합이 없었다.
 // ─────────────────────────────────────────────────────────────
-import { isValidCycleWeek } from './cycle-week.ts';
+import { isValidCycleWeek, formatCycleWeekRange } from './cycle-week.ts';
 
 test('4.2 — 아카이브 안 된 DONE은 완료로 세지 않는다 (마감 전 수동 재생성)', () => {
   const s = buildTeamSection(
@@ -262,3 +262,12 @@ test('주차 문자열 검증 — W00 / W99를 걸러낸다', () => {
   assert.equal(isValidCycleWeek(null), false);
   assert.equal(isValidCycleWeek(''), false);
 });
+
+test('주차 날짜 범위 변환 — ISO 주차를 한국어 날짜 범위로 변환한다', () => {
+  assert.equal(formatCycleWeekRange('2026-W35'), '2026년 8월 24일 ~ 8월 30일');
+  assert.equal(formatCycleWeekRange('2026-W01'), '2025년 12월 29일 ~ 2026년 1월 4일');
+  assert.equal(formatCycleWeekRange('2026-W36'), '2026년 8월 31일 ~ 9월 6일');
+  assert.equal(formatCycleWeekRange('2024-W52'), '2024년 12월 23일 ~ 12월 29일');
+  assert.equal(formatCycleWeekRange('invalid'), 'invalid');
+});
+

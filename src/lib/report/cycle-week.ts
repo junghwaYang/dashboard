@@ -73,3 +73,36 @@ export function nextCycleWeek(cycleWeek: string): string {
   const thisThursday = new Date(week1Thursday.getTime() + (Number(m[2]) - 1) * 7 * 86400000);
   return isoWeekKey(new Date(thisThursday.getTime() + 7 * 86400000));
 }
+
+/**
+ * ISO 8601 주차 키를 월요일~일요일 한국어 날짜 범위로 변환한다.
+ * 예: '2026-W35' -> '2026년 8월 24일 ~ 8월 30일'
+ */
+export function formatCycleWeekRange(cycleWeek: string): string {
+  const m = cycleWeek.match(/^(\d{4})-W(\d{2})$/);
+  if (!m) return cycleWeek;
+
+  const year = Number(m[1]);
+  const week = Number(m[2]);
+
+  // ISO 8601 1주차는 항상 1월 4일을 포함한다.
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const dayNum = (jan4.getUTCDay() + 6) % 7;
+  const week1Monday = new Date(jan4.getTime() - dayNum * 86400000);
+  const monday = new Date(week1Monday.getTime() + (week - 1) * 7 * 86400000);
+  const sunday = new Date(monday.getTime() + 6 * 86400000);
+
+  const mYear = monday.getUTCFullYear();
+  const mMonth = monday.getUTCMonth() + 1;
+  const mDay = monday.getUTCDate();
+
+  const sYear = sunday.getUTCFullYear();
+  const sMonth = sunday.getUTCMonth() + 1;
+  const sDay = sunday.getUTCDate();
+
+  if (mYear === sYear) {
+    return `${mYear}년 ${mMonth}월 ${mDay}일 ~ ${sMonth}월 ${sDay}일`;
+  }
+  return `${mYear}년 ${mMonth}월 ${mDay}일 ~ ${sYear}년 ${sMonth}월 ${sDay}일`;
+}
+

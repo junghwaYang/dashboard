@@ -2,7 +2,7 @@
 
 > **최종 갱신**: 2026-08-31
 > **브랜치**: `feature/weekly-report`
-> **상태**: 1차 범위 **구현 완료 + 엔드투엔드 실행 검증 완료**
+> **상태**: 1차 범위 **구현 완료 + 엔드투엔드 실행 검증 완료 + 보고서 화면 목록·모달 개편 완료(브라우저 검증)**
 > **관련 문서**: [주간보고서_기능_기획서.md](./주간보고서_기능_기획서.md) (v0.5), [CLAUDE.md](./CLAUDE.md)
 
 ---
@@ -23,29 +23,60 @@
 
 | 경로 | 내용 | 열람 권한 |
 |---|---|---|
-| `/teams/[teamId]/report?week=2026-W35` | 팀별 주간 보고서 | 해당 팀 소속 + admin |
-| `/report?week=2026-W35` | 전체 주간 보고서 | admin만 |
+| `/teams/[teamId]/report` | 팀별 주간 보고서 목록 | 해당 팀 소속 + admin |
+| `/report` | 전체 주간 보고서 목록 | admin만 |
+| `…/report?week=2026-W35` | 해당 주차 보고서가 모달로 열린 상태 | 위와 동일 |
 
-두 화면 모두 주차 이동, 요약 작성, 확정, Word 내려받기가 된다. 관리자에게는 재생성 버튼이 더 보인다.
+**두 화면은 생성된 보고서의 목록이다.** 주차를 좌우 화살표로 넘기던 구조를 2026-08-31에 바꿨다(아래 "보고서 화면 개편").
+각 행은 `2026년 8월 24일 ~ 8월 30일` 날짜 범위로 표시되고, 확정/미확정 배지와 완료·진행·이슈 건수가 함께 붙는다.
+행을 클릭하거나 Enter/Space로 열면 그 보고서가 모달로 뜬다. 모달 안에서 요약 작성, 확정, Word 내려받기를 한다.
+관리자에게는 목록 헤더에 재생성 버튼이 더 보인다.
 사이드바에 "주간 보고서" 항목을 추가했다. 내 팀 보고서는 소속이 있으면, 전체 보고서는 admin에게만 보인다.
 
 ### 신규 소스
 
 ```
 src/types/report.ts                        타입 정의
-src/lib/report/cycle-week.ts               주차 계산 (DB의 TO_CHAR과 같은 결과를 내야 한다)
+src/lib/report/cycle-week.ts               주차 계산 (DB의 TO_CHAR과 같은 결과를 내야 한다) + 날짜 범위 표기
 src/lib/report/build-report.ts             집계 — 이 기능의 핵심
-src/lib/report/build-report.test.ts        검증 19건 (의존성 없이 node --test로 돈다)
+src/lib/report/build-report.test.ts        검증 20건 (의존성 없이 node --test로 돈다)
 src/lib/report/generate.ts                 생성 오케스트레이션
 src/lib/report/docx.ts                     Word(.docx) 생성
 src/lib/supabase/admin.ts                  service role 클라이언트 (cron 전용)
 src/components/report/ReportView.tsx       보고서 본문 렌더러 (규칙 15 순서 고정)
-src/components/report/ReportPageShell.tsx  데이터 로딩 / 요약 / 확정 / 다운로드
+src/components/report/ReportPageShell.tsx  보고서 목록 + 모달 열고 닫기(딥링크 동기화)
+src/components/report/ReportDetailModal.tsx 상세 모달 — 요약 / 확정 / 다운로드 / 본문
 src/app/report/page.tsx                    전체 보고서 페이지
 src/app/teams/[teamId]/report/page.tsx     팀별 보고서 페이지
 src/app/api/reports/generate/route.ts      수동 재생성 (admin)
 src/app/api/reports/docx/route.ts          Word 내려받기
 ```
+
+### 보고서 화면 개편 (2026-08-31)
+
+주차를 화살표로 하나씩 넘기던 단일 주차 화면을, **생성된 보고서의 목록 + 상세 모달**로 바꿨다.
+보고서가 쌓일수록 "언제 것이 있는지" 자체가 안 보이던 문제 때문이다.
+
+| 바뀐 것 | 내용 |
+|---|---|
+| 목록 | `weekly_reports`를 `cycle_week` 내림차순으로 전부 조회해 세로 리스트로 그린다 |
+| 날짜 표기 | 주차 키(`2026-W35`) 대신 `2026년 8월 24일 ~ 8월 30일`. 주차 키는 보조 배지로 남겼다 |
+| 상세 | 행을 열면 모달. 요약 작성·저장·확정, `ReportView` 본문, Word 내려받기가 전부 모달 안에 있다 |
+| 딥링크 | `?week=` 유지. 그 URL로 직접 들어오면 모달이 열린 채 시작하고, 닫으면 파라미터가 지워진다 |
+| 닫기 | ESC, 오버레이 바깥 클릭, 우상단 X 세 경로 |
+| 키보드 | 목록 행은 `role="button"` + `tabIndex=0` + Enter/Space 핸들러다. `div`에 `onClick`만 달면 키보드로 도달조차 못 한다 |
+
+**날짜 변환은 `formatCycleWeekRange`가 한다.** 기존 `cycle-week.ts` 함수는 DB의 `TO_CHAR`과 결과가 일치해야 해서
+실측값 테스트가 걸려 있다. 그래서 기존 함수를 건드리지 않고 순수 함수를 새로 붙였다.
+Python 표준 ISO 달력(`date.fromisocalendar`)과 대조해 53주차 연도(`2020-W53`), 연도 넘김(`2026-W01`)까지 일치를 확인했다.
+
+**RPC와 권한 판정은 위치만 옮겼고 내용은 그대로다.** `save_weekly_report_summary`, `confirm_weekly_report`,
+`canWrite`/`isAdmin` 모두 원문 유지다. 화면 구조가 바뀌어도 보안 경계는 그대로여야 한다.
+
+> 이 개편은 Antigravity CLI(`agy`)에 위임해 구현하고 이쪽에서 검증했다.
+> 절차는 `~/.claude/skills/delegate-verify-loop/SKILL.md`에 스킬로 정리해 뒀다.
+> 위임 과정에서 완료 조건에 `npm run lint`를 넣은 탓에 에이전트가 ESLint를 새로 설치하고
+> 규칙 두 개를 꺼서 통과시킨 일이 있었다. **그 변경분은 되돌렸다.** 이 저장소는 여전히 ESLint 설정이 없다.
 
 ### 변경된 기존 파일
 
@@ -105,7 +136,7 @@ src/app/api/reports/docx/route.ts          Word 내려받기
 | 대상 | 방법 | 결과 |
 |---|---|---|
 | 주차 태깅 A안 | DB 실측 **1054건**(2024-12-25~2027-01-10)과 TS 구현 대조 | 불일치 0건 |
-| 집계 규칙 | `node --test src/lib/report/build-report.test.ts` | **19건 통과** |
+| 집계 규칙 | `node --test src/lib/report/build-report.test.ts` | **20건 통과** |
 | 팀 불일치 트리거 | 개발팀 업무에 디자인팀 프로젝트 지정 시도 | 차단 |
 | 프로젝트 팀 변경 | 업무가 붙은 프로젝트의 팀 변경 시도 | 차단 |
 | 보고서 RPC 권한 | 익명 / member / admin / service_role 4경로 | 앞 둘 차단, 뒤 둘 통과 |
@@ -121,7 +152,7 @@ src/app/api/reports/docx/route.ts          Word 내려받기
 ### 검증 명령
 
 ```bash
-node --test src/lib/report/build-report.test.ts   # 19건
+node --test src/lib/report/build-report.test.ts   # 20건
 npx tsc --noEmit                                   # 타입
 npm run build                                      # 빌드 (lint 포함)
 ```
@@ -247,11 +278,23 @@ Supabase 데이터베이스 린터가 잡아낸 것이다. **이번 작업 이�
 
 Vercel 대시보드에서 cron이 실제 등록됐는지는 **보지 않았다.**
 
-### 🟡 브라우저에서 화면을 눈으로 보지 않았다
+### 🟢 브라우저 확인 — 완료 (2026-08-31)
 
-HTTP 라우트가 200/400/401을 정확히 돌려주는 것은 확인했다(3절). 하지만 **렌더링된 화면을 눈으로 본 적은 없다.** 로그인한 상태의 화면, 요약 입력창, 확정 버튼, Word 내려받기 버튼이 실제로 어떻게 보이는지는 미확인이다.
+로그인한 상태로 `/report`와 `/teams/development/report`를 실제 브라우저에서 열어 눌러봤다.
+목록 렌더링, 행 클릭, 모달 표시, 모달 내부 스크롤, ESC·바깥 클릭 닫기, `?week=` 딥링크 진입,
+키보드 Enter로 열기, 확정/미확정 배지 구분까지 확인했다. 콘솔 에러는 없었다.
 
-로그인·온보딩도 DB 안에서 상황을 흉내 내 검증했지 실제 브라우저로 눌러보지 않았다.
+**아직 안 본 것 둘이 남는다.**
+
+- **Word 내려받기 버튼을 실제로 누르지 않았다.** 응답 헤더의 한글 파일명(RFC 5987) 처리는 여전히 미검증이다.
+- **요약 저장·확정 버튼을 실제로 누르지 않았다.** 확정은 되돌릴 수 없어서 실데이터로 밟지 않았다.
+  RPC 호출 코드는 개편 전과 동일하고 개편 전 경로는 DB 레벨에서 검증돼 있다(3절).
+
+### 🟡 보고서가 여러 주차 쌓인 화면을 못 봤다
+
+DB에 `2026-W35` 한 주차뿐이라 목록에 항상 1건만 뜬다.
+정렬(`cycle_week` 내림차순)과 여러 행이 쌓인 모습은 **코드로만 확인했고 화면으로는 못 봤다.**
+다음 주차 보고서가 생기면 자연히 드러난다. 급하면 임시 행을 넣어 확인하고 지우면 된다.
 
 ---
 
@@ -314,17 +357,18 @@ DELETE FROM public.weekly_archive_logs
 - **주중에 해소된 이슈는 보고서에 안 남는다.** 보고서는 마감 시점 스냅샷이다 (결정 6의 알려진 한계)
 - **`weekly_reports`를 직접 UPDATE하면 실패한다.** 권한을 회수했다. RPC를 쓸 것
 - **확정은 되돌릴 수 없다.** 되돌리기가 필요하면 admin 전용 함수를 새로 만들어야 한다
+- **목록 행처럼 `div`에 `onClick`만 다는 패턴을 쓰지 말 것.** 키보드로 도달조차 못 한다. `role="button"` + `tabIndex` + `onKeyDown`이 같이 가야 한다
 - **테스트 파일은 `.ts` 확장자로 import한다.** `node --test`가 요구하는 형식이고 tsc는 거부하므로 `tsconfig.json`에서 제외했다. 이 구조를 바꾸면 둘 중 하나가 깨진다
 
 ---
 
 ## 9. 다음에 할 일 (권장 순서)
 
-1. **브라우저에서 눈으로 확인한다.** 로그인 → 보고서 화면 → 요약 작성 → 확정 → Word 내려받기.
-   예시 데이터가 남아 있으므로 화면이 채워진 상태로 보인다. 개발 서버는 `npm run dev`.
-2. **`SUPABASE_SERVICE_ROLE_KEY`를 설정한다.** 이게 있어야 cron 자동 생성이 동작한다 (6절)
-3. **cron 라우트를 service role로 전환하고, 기존 함수 3개의 anon 권한을 회수한다** (6절)
-4. **2026-09-07 이후 첫 자동 실행을 확인한다**
+1. **`SUPABASE_SERVICE_ROLE_KEY`를 설정한다.** 이게 있어야 cron 자동 생성이 동작한다 (6절)
+2. **cron 라우트를 service role로 전환하고, 기존 함수 3개의 anon 권한을 회수한다** (6절)
+3. **2026-09-07 이후 첫 자동 실행을 확인한다.** 그때 두 번째 주차가 생기므로
+   목록이 여러 행으로 쌓인 화면도 이때 같이 본다 (6절)
+4. **Word 내려받기와 요약 저장·확정을 브라우저에서 한 번 눌러본다** (6절)
 5. 필요해지면 **테스트 데이터를 정리한다** (7절에 SQL 있음)
 
 2차 범위(기획서 6절)는 인쇄용 PDF와 반복 이슈 자동 판정이다. 반복 이슈 판정은 `markRepeatedIssues`로 이미 구현돼 화면과 Word에 "반복/신규"로 표시된다. 남은 것은 인쇄 CSS뿐이다.

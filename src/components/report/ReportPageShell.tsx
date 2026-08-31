@@ -1,28 +1,16 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboard } from '@/context/dashboard-context';
-import { ReportView } from './ReportView';
-import { markRepeatedIssues } from '@/lib/report/build-report';
-import { currentCycleWeek, previousCycleWeek, nextCycleWeek } from '@/lib/report/cycle-week';
-import type { ReportPayload, ReportScope, ReportStatus } from '@/types/report';
+import { currentCycleWeek, formatCycleWeekRange, previousCycleWeek } from '@/lib/report/cycle-week';
+import { ReportDetailModal, type ReportRow } from './ReportDetailModal';
+import type { ReportScope } from '@/types/report';
 import type { TeamId } from '@/types/dashboard';
 import {
-  FileDown, RefreshCw, CheckCircle2, ChevronLeft, ChevronRight,
-  Lock, AlertTriangle, Save,
+  RefreshCw, Lock, AlertTriangle, ChevronRight,
 } from 'lucide-react';
-
-interface ReportRow {
-  id: string;
-  cycle_week: string;
-  scope: ReportScope;
-  team_id: TeamId | null;
-  status: ReportStatus;
-  summary_text: string | null;
-  payload: ReportPayload;
-}
 
 export function ReportPageShell({
   scope,
@@ -34,19 +22,17 @@ export function ReportPageShell({
   title: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { currentProfile, authUser, isLoading: isDashboardLoading } = useDashboard();
 
-  const week = searchParams.get('week') || currentCycleWeek();
-
-  const [report, setReport] = useState<ReportRow | null>(null);
-  const [previousPayload, setPreviousPayload] = useState<ReportPayload | null>(null);
+  const [reports, setReports] = useState<ReportRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [draftSummary, setDraftSummary] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const selectedWeek = searchParams.get('week');
 
   const isAdmin = currentProfile?.role === 'admin';
   // 작성 권한 (결정 9). 팀별은 해당 팀 소속 + admin, 전체는 admin만.
@@ -66,95 +52,36 @@ export function ReportPageShell({
     setError(null);
 
     const select = 'id, cycle_week, scope, team_id, status, summary_text, payload';
-    const base = () => {
-      const q = supabase.from('weekly_reports').select(select).eq('scope', scope);
-      return scope === 'TEAM' ? q.eq('team_id', teamId!) : q.is('team_id', null);
-    };
+    let q = supabase.from('weekly_reports').select(select).eq('scope', scope);
+    q = scope === 'TEAM' ? q.eq('team_id', teamId!) : q.is('team_id', null);
 
-    const { data, error: err } = await base().eq('cycle_week', week).maybeSingle();
+    // 해당 scope/team의 생성된 보고서를 전부 조회한다 (최신순)
+    const { data, error: err } = await q.order('cycle_week', { ascending: false });
 
     if (err) {
       setError(err.message);
-      setReport(null);
+      setReports([]);
     } else {
-      setReport((data as ReportRow | null) ?? null);
-      setDraftSummary((data as ReportRow | null)?.summary_text ?? '');
+      setReports((data as ReportRow[]) ?? []);
     }
 
-    // 반복 이슈 판정용 지난 주 스냅샷 (규칙 10)
-    const { data: prev } = await base().eq('cycle_week', previousCycleWeek(week)).maybeSingle();
-    setPreviousPayload(((prev as ReportRow | null)?.payload as ReportPayload) ?? null);
-
     setIsLoading(false);
-  }, [scope, teamId, week]);
+  }, [scope, teamId]);
 
   useEffect(() => {
     if (!isDashboardLoading) load();
   }, [load, isDashboardLoading]);
 
-  const repeatedIssueIds = useMemo(
-    () => (report ? markRepeatedIssues(report.payload, previousPayload) : new Set<string>()),
-    [report, previousPayload]
-  );
-
-  const goWeek = (target: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('week', target);
-    router.push(`?${params.toString()}`);
-  };
-
-  // 요약 저장과 확정은 RPC로만 한다. 테이블 직접 UPDATE 권한은 회수했다.
-  // 작성자·확정자는 서버가 auth.uid()로 박으므로 클라이언트가 위조할 수 없다.
-  const saveSummary = async () => {
-    if (!report) return;
-    const supabase = createClient();
-    if (!supabase || !authUser) return;
-
-    setIsSaving(true);
-    setNotice(null);
-    const { error: err } = await supabase.rpc('save_weekly_report_summary', {
-      p_report_id: report.id,
-      p_summary: draftSummary,
-    });
-    setIsSaving(false);
-
-    if (err) {
-      setNotice(`요약 저장 실패: ${err.message}`);
-      return;
-    }
-    setNotice('요약을 저장했다.');
-    load();
-  };
-
-  const confirmReport = async () => {
-    if (!report) return;
-    const supabase = createClient();
-    if (!supabase || !authUser) return;
-
-    setIsSaving(true);
-    setNotice(null);
-    const { error: err } = await supabase.rpc('confirm_weekly_report', {
-      p_report_id: report.id,
-      p_summary: draftSummary,
-    });
-    setIsSaving(false);
-
-    if (err) {
-      setNotice(`확정 실패: ${err.message}`);
-      return;
-    }
-    setNotice('보고서를 확정했다. 확정은 되돌릴 수 없고, 이후 자동 재생성이 덮지 않는다.');
-    load();
-  };
-
+  // 보고서 재생성 (기존 로직 및 권한 유지)
   const regenerate = async () => {
     setIsGenerating(true);
     setNotice(null);
     try {
+      const targetWeek = selectedWeek || currentCycleWeek();
       const res = await fetch('/api/reports/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_week: week }),
+        body: JSON.stringify({ cycle_week: targetWeek }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -174,12 +101,30 @@ export function ReportPageShell({
     setIsGenerating(false);
   };
 
-  const docxHref = `/api/reports/docx?week=${encodeURIComponent(week)}&scope=${scope}${
-    scope === 'TEAM' ? `&team=${teamId}` : ''
-  }`;
+  const openReportModal = (weekKey: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('week', weekKey);
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const closeReportModal = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('week');
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const activeReport = selectedWeek
+    ? reports.find((r) => r.cycle_week === selectedWeek) ?? null
+    : null;
+
+  // 지난 주 스냅샷 (반복 이슈 판정용, 규칙 10)
+  const previousPayload = activeReport
+    ? reports.find((r) => r.cycle_week === previousCycleWeek(activeReport.cycle_week))?.payload ?? null
+    : null;
 
   if (isDashboardLoading || isLoading) {
-    return <div className="py-20 text-center text-xs text-muted-foreground">보고서를 불러오는 중…</div>;
+    return <div className="py-20 text-center text-xs text-muted-foreground">보고서 목록을 불러오는 중…</div>;
   }
 
   if (!authUser) {
@@ -193,71 +138,27 @@ export function ReportPageShell({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200 max-w-5xl">
-      {/* 헤더 */}
+      {/* 목록 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-5">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] bg-secondary text-secondary-foreground border border-border px-2 py-0.5 rounded-full font-semibold">
-              {week}
+              총 {reports.length}건
             </span>
-            {report && (
-              <span
-                className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                  report.status === 'CONFIRMED'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}
-              >
-                {report.status === 'CONFIRMED' ? '확정' : '미확정'}
-              </span>
-            )}
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">{title}</h1>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center rounded-xl bg-secondary p-1 border border-border">
-            <button
-              onClick={() => goWeek(previousCycleWeek(week))}
-              className="p-1.5 rounded-lg hover:bg-card text-muted-foreground hover:text-foreground transition"
-              title="이전 주"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => goWeek(currentCycleWeek())}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-card hover:text-foreground transition"
-            >
-              이번 주
-            </button>
-            <button
-              onClick={() => goWeek(nextCycleWeek(week))}
-              className="p-1.5 rounded-lg hover:bg-card text-muted-foreground hover:text-foreground transition"
-              title="다음 주"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
           {isAdmin && (
             <button
               onClick={regenerate}
               disabled={isGenerating}
-              className="flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground hover:bg-accent transition disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-xl bg-secondary px-3.5 py-2 text-xs font-semibold text-secondary-foreground hover:bg-accent transition disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
               <span>재생성</span>
             </button>
-          )}
-
-          {report && (
-            <a
-              href={docxHref}
-              className="flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition shadow-sm"
-            >
-              <FileDown className="h-4 w-4" />
-              <span>Word 내려받기</span>
-            </a>
           )}
         </div>
       </div>
@@ -275,9 +176,10 @@ export function ReportPageShell({
         </div>
       )}
 
-      {!report ? (
+      {/* 보고서 목록 */}
+      {reports.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-3">
-          <p className="text-sm font-semibold text-foreground">{week} 보고서가 없습니다.</p>
+          <p className="text-sm font-semibold text-foreground">생성된 보고서가 없습니다.</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
             보고서는 주간 마감 직후 자동으로 생성된다.
             <br />
@@ -295,58 +197,88 @@ export function ReportPageShell({
           )}
         </div>
       ) : (
-        <>
-          {/* 요약 작성 영역 (결정 4). 자동 생성 직후에는 비어 있다. */}
-          {canWrite && (
-            <div className="rounded-2xl border border-border bg-card p-4 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-foreground">이번 주 요약 작성</label>
-                <span className="text-[10px] text-muted-foreground">
-                  짧게 쓴다. 한 항목 두 줄 이내. 추측 표현을 쓰지 않는다. ({draftSummary.length}/5000)
-                </span>
-              </div>
-              <textarea
-                value={draftSummary}
-                onChange={(e) => setDraftSummary(e.target.value)}
-                rows={4}
-                maxLength={5000}
-                placeholder="완료된 일은 과거형으로, 진행중인 일은 현재형으로 쓴다."
-                disabled={report.status === 'CONFIRMED'}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 resize-y"
-              />
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={saveSummary}
-                  disabled={isSaving || report.status === 'CONFIRMED'}
-                  className="flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground hover:bg-accent transition disabled:opacity-50"
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  <span>요약 저장</span>
-                </button>
-                <button
-                  onClick={confirmReport}
-                  disabled={isSaving || report.status === 'CONFIRMED'}
-                  className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>{report.status === 'CONFIRMED' ? '확정됨' : '확정하기'}</span>
-                </button>
-                <span className="text-[11px] text-muted-foreground">
-                  {report.status === 'CONFIRMED'
-                    ? '확정됐다. 되돌릴 수 없고 자동 재생성이 덮어쓰지 않는다.'
-                    : '확정하면 되돌릴 수 없다.'}
-                </span>
-              </div>
-            </div>
-          )}
+        <div className="space-y-3">
+          {reports.map((r) => {
+            const counts =
+              r.scope === 'ALL'
+                ? r.payload?.totals
+                : r.payload?.sections?.[0]?.counts;
 
-          <ReportView
-            payload={report.payload}
-            summaryText={report.summary_text}
-            repeatedIssueIds={repeatedIssueIds}
-          />
-        </>
+            return (
+              // 마우스 없이도 열려야 한다. div에 onClick만 달면 키보드로 도달조차 못 한다.
+              <div
+                key={r.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${formatCycleWeekRange(r.cycle_week)} 보고서 열기`}
+                onClick={() => openReportModal(r.cycle_week)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openReportModal(r.cycle_week);
+                  }
+                }}
+                className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border hover:border-primary/40 hover:shadow-sm transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                        r.status === 'CONFIRMED'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {r.status === 'CONFIRMED' ? '확정' : '미확정'}
+                    </span>
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground border border-border">
+                      {r.cycle_week}
+                    </span>
+                    {counts && (
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <span>완료 {counts.done}</span>
+                        <span>·</span>
+                        <span>진행 {counts.in_progress}</span>
+                        <span>·</span>
+                        <span className={counts.issue > 0 ? 'text-red-600 font-semibold' : ''}>
+                          이슈 {counts.issue}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition">
+                    {formatCycleWeekRange(r.cycle_week)}
+                  </h3>
+
+                  {r.summary_text && (
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      {r.summary_text}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 text-muted-foreground group-hover:text-primary transition">
+                  <span className="text-xs font-semibold hidden sm:inline">보고서 보기</span>
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
+
+      {/* 상세 모달 */}
+      <ReportDetailModal
+        isOpen={Boolean(selectedWeek && activeReport)}
+        onClose={closeReportModal}
+        report={activeReport}
+        previousPayload={previousPayload}
+        canWrite={canWrite}
+        scope={scope}
+        teamId={teamId}
+        onReportUpdated={load}
+      />
     </div>
   );
 }
