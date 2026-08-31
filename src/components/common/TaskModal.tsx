@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Task, TeamId, TaskStatus, TaskPriority } from '@/types/dashboard';
 import { useDashboard } from '@/context/dashboard-context';
-import { X, Calendar, AlertCircle, User, Flag, CheckCircle } from 'lucide-react';
+import { X, Calendar, AlertCircle, User, Flag, CheckCircle, FolderKanban, TriangleAlert } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -20,7 +20,7 @@ interface TaskModalProps {
 }
 
 export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProps) {
-  const { createTask, updateTask, profiles, teams } = useDashboard();
+  const { createTask, updateTask, profiles, teams, projects } = useDashboard();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -28,6 +28,10 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
   const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [assigneeId, setAssigneeId] = useState<string>('unassigned');
   const [dueDate, setDueDate] = useState<string>('');
+  // 프로젝트 (기획서 3.1). 'none'이면 미지정이고 보고서에서 "기타"로 묶인다.
+  const [projectId, setProjectId] = useState<string>('none');
+  // 이슈 (기획서 3.2). 비어 있으면 이슈 없음이다 (결정 6).
+  const [issueNote, setIssueNote] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -39,6 +43,8 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
       setPriority(taskToEdit.priority);
       setAssigneeId(taskToEdit.assignee_id || 'unassigned');
       setDueDate(taskToEdit.due_date || '');
+      setProjectId(taskToEdit.project_id || 'none');
+      setIssueNote(taskToEdit.issue_note || '');
     } else {
       setTitle('');
       setDescription('');
@@ -46,6 +52,8 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
       setPriority('MEDIUM');
       setAssigneeId('unassigned');
       setDueDate('');
+      setProjectId('none');
+      setIssueNote('');
     }
     setErrorMessage(null);
   }, [taskToEdit, isOpen]);
@@ -54,6 +62,9 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
 
   const currentTeam = teams.find((t) => t.id === teamId);
   const teamProfiles = profiles.filter((p) => p.team_id === teamId || p.role === 'admin');
+  // 선택 목록을 해당 팀 프로젝트로 제한한다 (기획서 3.1).
+  // DB 트리거도 같은 것을 검증하므로 이 목록을 우회해도 저장 단계에서 막힌다.
+  const teamProjects = projects.filter((p) => p.team_id === teamId && p.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +77,9 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
     setErrorMessage(null);
 
     const actualAssigneeId = assigneeId === 'unassigned' ? null : assigneeId;
+    const actualProjectId = projectId === 'none' ? null : projectId;
+    // 공백만 남은 입력은 이슈 없음으로 본다 (결정 6)
+    const actualIssueNote = issueNote.trim() === '' ? null : issueNote.trim();
 
     try {
       if (taskToEdit) {
@@ -76,6 +90,8 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
           priority,
           assignee_id: actualAssigneeId,
           due_date: dueDate || null,
+          project_id: actualProjectId,
+          issue_note: actualIssueNote,
         });
       } else {
         await createTask({
@@ -86,6 +102,8 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
           team_id: teamId,
           assignee_id: actualAssigneeId,
           due_date: dueDate || null,
+          project_id: actualProjectId,
+          issue_note: actualIssueNote,
         });
       }
       onClose();
@@ -227,6 +245,50 @@ export function TaskModal({ isOpen, onClose, teamId, taskToEdit }: TaskModalProp
                 className="w-full h-10 rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
               />
             </div>
+          </div>
+
+          {/* 프로젝트 (기획서 3.1) */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1">
+              <FolderKanban className="h-3.5 w-3.5 text-indigo-500" /> 프로젝트
+            </label>
+            <Select value={projectId} onValueChange={(val) => setProjectId(val)}>
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="프로젝트 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">미지정 (보고서에서 기타로 묶임)</SelectItem>
+                {teamProjects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {teamProjects.length === 0 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                이 팀에 등록된 프로젝트가 없다. 미지정으로 두면 보고서에서 기타로 묶인다.
+              </p>
+            )}
+          </div>
+
+          {/* 이슈 (기획서 3.2). 내용이 있으면 이슈, 비우면 이슈 없음이다. */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1">
+              <TriangleAlert className="h-3.5 w-3.5 text-amber-500" /> 이슈 (막힌 내용)
+            </label>
+            <textarea
+              value={issueNote}
+              onChange={(e) => setIssueNote(e.target.value)}
+              rows={2}
+              placeholder="막힌 내용을 적으면 주간 보고서의 이슈로 잡힌다. 비워 두면 이슈 없음이다."
+              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm resize-y"
+            />
+            {issueNote.trim() !== '' && (
+              <p className="mt-1 text-[11px] text-amber-700">
+                이슈로 잡힌다. 진행 상태와 무관하게 보고서에서는 이슈로 분류된다.
+              </p>
+            )}
           </div>
 
           {/* Buttons */}

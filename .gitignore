@@ -51,3 +51,7 @@ supabase/.temp/
 .vercel
 .env*
 .mcp.json
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+.omx/

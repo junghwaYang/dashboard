@@ -41,6 +41,19 @@ export interface Task {
   archived_at?: string | null;
   cycle_week?: string | null;
   archive_batch_id?: string | null;
+  /** 프로젝트. NULL이면 보고서에서 "기타"로 묶인다 (기획서 3.1) */
+  project_id?: string | null;
+  /** 이슈 내용. 비어 있으면 이슈 없음이다 (기획서 3.2, 결정 6) */
+  issue_note?: string | null;
+}
+
+/** 프로젝트는 반드시 한 팀에 속한다 (기획서 3.1, 결정 7) */
+export interface Project {
+  id: string;
+  name: string;
+  team_id: TeamId;
+  is_active: boolean;
+  created_at: string;
 }
 
 export type ArchiveLogStatus = 'SUCCESS' | 'FAILED' | 'ROLLED_BACK';

@@ -11,7 +11,8 @@ import {
   OverviewMetrics, 
   UserRole,
   WeeklyArchiveLog,
-  ArchiveExecutionResult
+  ArchiveExecutionResult,
+  Project
 } from '@/types/dashboard';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -24,6 +25,7 @@ interface DashboardContextType {
   teams: Team[];
   profiles: Profile[];
   tasks: Task[];
+  projects: Project[];
   authUser: User | null;
   currentProfile: Profile | null;
   isLoading: boolean;
@@ -39,6 +41,8 @@ interface DashboardContextType {
     team_id: TeamId;
     assignee_id: string | null;
     due_date: string | null;
+    project_id?: string | null;
+    issue_note?: string | null;
   }) => Promise<Task>;
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<Task>;
   deleteTask: (taskId: string) => Promise<void>;
@@ -63,6 +67,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,6 +160,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setCurrentProfile(null);
+      }
+
+      // 3-1. Fetch Projects (보고서 프로젝트별 묶음 / 업무 등록 시 선택 목록)
+      const { data: projectsData } = await supabase
+        .from('projects')
+        .select('*')
+        .order('team_id')
+        .order('name');
+
+      if (projectsData) {
+        setProjects(projectsData as Project[]);
       }
 
       // 4. Fetch Active Tasks with Assignee profiles (is_archived = false)
@@ -289,6 +305,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       team_id: TeamId;
       assignee_id: string | null;
       due_date: string | null;
+      project_id?: string | null;
+      issue_note?: string | null;
     }): Promise<Task> => {
       const supabase = createClient();
       if (!supabase) throw new Error('Supabase client is not available');
@@ -553,6 +571,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         teams,
         profiles,
         tasks,
+        projects,
         authUser,
         currentProfile,
         isLoading,

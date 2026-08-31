@@ -14,6 +14,7 @@ export const config = {
      */
     '/',
     '/teams/:path*',
+    '/report',
     '/onboarding',
     '/login',
     '/auth/:path*',

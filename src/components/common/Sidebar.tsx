@@ -10,7 +10,8 @@ import {
   Palette, 
   Code2, 
   Lock, 
-  ShieldCheck
+  ShieldCheck,
+  FileText
 } from 'lucide-react';
 import { TeamId } from '@/types/dashboard';
 
@@ -156,6 +157,46 @@ export function Sidebar() {
                 </Link>
               );
             })}
+          </nav>
+        </div>
+
+      {/* 주간 보고서 (기획서 5.1, 5.2) */}
+        <div>
+          <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-2">
+            주간 보고서
+          </div>
+          <nav className="space-y-1">
+            {currentProfile?.team_id && (
+              <Link
+                href={`/teams/${currentProfile.team_id}/report`}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                  pathname === `/teams/${currentProfile.team_id}/report`
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                <FileText className="h-4 w-4" />
+                <span>내 팀 주간 보고서</span>
+              </Link>
+            )}
+            {currentProfile?.role === 'admin' && (
+              <Link
+                href="/report"
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                  pathname === '/report'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4" />
+                  <span>전체 주간 보고서</span>
+                </div>
+                <span className="text-[10px] bg-secondary text-secondary-foreground border border-border px-1.5 py-0.5 rounded font-semibold">
+                  관리자
+                </span>
+              </Link>
+            )}
           </nav>
         </div>
       </div>
