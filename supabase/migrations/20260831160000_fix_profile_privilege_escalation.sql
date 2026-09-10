@@ -2,7 +2,7 @@
 --
 -- 문제: 일반 member가 스스로 admin이 될 수 있었다.
 --
---   UPDATE profiles SET email='siltarre@gmail.com', role='admin' WHERE id = auth.uid();
+--   UPDATE profiles SET email='[관리자 이메일]', role='admin' WHERE id = auth.uid();
 --
 -- 이 UPDATE가 실제로 통과하는 것을 확인했다(확인 후 즉시 원복).
 --
@@ -50,7 +50,9 @@ BEGIN
   NEW.email := v_auth_email;
 
   -- 관리자는 실제 로그인 계정이 슈퍼관리자일 때만 가능하다.
-  IF NEW.role = 'admin' AND v_auth_email <> 'siltarre@gmail.com' THEN
+  -- 이메일 값은 소스에 두지 않는다. Supabase 프로젝트 설정에서
+  -- app.super_admin_email GUC로 별도 지정한다(20260910000000 마이그레이션 참고).
+  IF NEW.role = 'admin' AND v_auth_email <> current_setting('app.super_admin_email', true) THEN
     NEW.role := 'member';
   END IF;
 

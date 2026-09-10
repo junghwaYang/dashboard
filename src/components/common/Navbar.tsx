@@ -150,7 +150,7 @@ export function Navbar() {
                   </Link>
                 </DropdownMenuItem>
 
-                {/* Role Switcher (오직 최고관리자 siltarre@gmail.com 계정 전용) */}
+                {/* Role Switcher (오직 슈퍼관리자 계정 전용) */}
                 {isSuperAdmin && (
                   <DropdownMenuItem
                     onClick={() => {

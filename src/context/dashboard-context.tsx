@@ -19,7 +19,11 @@ import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 
 // 👑 최고관리자 권한을 가진 화이트리스트 이메일 목록
-export const SUPER_ADMIN_EMAILS = ['siltarre@gmail.com'];
+// 값은 소스에 두지 않는다. 배포 환경마다 NEXT_PUBLIC_SUPER_ADMIN_EMAILS(쉼표 구분)로 지정한다.
+export const SUPER_ADMIN_EMAILS = (process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAILS || '')
+  .split(',')
+  .map((email) => email.trim())
+  .filter(Boolean);
 
 interface DashboardContextType {
   teams: Team[];
@@ -264,15 +268,15 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [authUser]
   );
 
-  // Set / Toggle User's Role (오직 siltarre@gmail.com 만 가능)
+  // Set / Toggle User's Role (오직 슈퍼관리자만 가능, NEXT_PUBLIC_SUPER_ADMIN_EMAILS 기준)
   const setUserRole = useCallback(
     async (role: UserRole) => {
       const supabase = createClient();
       if (!supabase || !authUser) return;
 
-      // 보안 검증: siltarre@gmail.com 계정이 아닌 경우 admin 승격 불가
+      // 보안 검증: 슈퍼관리자 계정이 아닌 경우 admin 승격 불가
       if (role === 'admin' && !SUPER_ADMIN_EMAILS.includes(authUser.email || '')) {
-        console.warn('관리자 권한은 siltarre@gmail.com 계정만 부여받을 수 있습니다.');
+        console.warn('관리자 권한은 슈퍼관리자 계정만 부여받을 수 있습니다.');
         return;
       }
 

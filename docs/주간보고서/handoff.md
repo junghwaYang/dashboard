@@ -220,12 +220,12 @@ Codex가 "정상"으로 확인해준 것: NULL 처리, `search_path` 강화, TEA
 ### 지적 1이 왜 심각했나
 
 ```sql
-UPDATE profiles SET email='siltarre@gmail.com', role='admin' WHERE id = auth.uid();
+UPDATE profiles SET email='[관리자 이메일]', role='admin' WHERE id = auth.uid();
 ```
 
 이게 통과했다. `profiles.email`에 실제 로그인 계정(`auth.users.email`)과의 일치 제약이 없었고, admin 제한 트리거가 그 문자열만 봤기 때문이다.
 
-**이 기능만의 문제가 아니었다.** `tasks` RLS의 admin 분기, 전체 보고서 열람, 보고서 생성 RPC가 전부 `profiles.role`을 신뢰하므로 함께 무력화됐다. 이번 작업 이전부터 있던 상태이고, 공교롭게도 커밋 `29eaf89`("관리자 권한을 siltarre@gmail.com에 한정")에서 생겼다.
+**이 기능만의 문제가 아니었다.** `tasks` RLS의 admin 분기, 전체 보고서 열람, 보고서 생성 RPC가 전부 `profiles.role`을 신뢰하므로 함께 무력화됐다. 이번 작업 이전부터 있던 상태이고, 공교롭게도 커밋 `29eaf89`("관리자 권한을 슈퍼관리자 계정에 한정")에서 생겼다.
 
 `160000`이 판단 기준을 "프로필에 적힌 이메일"에서 "실제 로그인 계정의 이메일"로 옮겼다. `auth.users`는 사용자가 쓸 수 없는 테이블이라 위조가 불가능하다.
 
@@ -300,7 +300,7 @@ DB에 `2026-W35` 한 주차뿐이라 목록에 항상 1건만 뜬다.
 
 ## 7. 현재 데이터 상태 (2026-08-31 기준)
 
-프로젝트 `pbjxzfuouzjvkjjwlgnl`.
+프로젝트 `[REDACTED]`.
 
 🟡 **엔드투엔드 테스트용 예시 데이터가 그대로 남아 있다.** 지우지 않기로 했다(화면에서 확인하기 위해서다).
 아래 건수는 원래 데이터 + 테스트 데이터가 섞인 값이다.
